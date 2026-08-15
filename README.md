@@ -1,0 +1,11 @@
+Crear tabla de prueba para el archivo `nuevo_main.cpp`:
+
+```sql
+CREATE TABLE Persona (
+    ID NUMBER(8,0),
+    NOMBRE VARCHAR2(100) NOT NULL,
+    EMAIL VARCHAR2(100) NOT NULL UNIQUE,
+    FECHA_REGISTRO DATE DEFAULT SYSDATE NOT NULL,
+    CONSTRAINT PK_PERSONA_ID PRIMARY KEY (ID)
+);
+```
