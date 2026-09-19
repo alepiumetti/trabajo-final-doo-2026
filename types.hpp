@@ -37,11 +37,7 @@ struct Orden {
 };
 
 
-
 //  ========================== NODO CONSUMIDOR  ==========================
-
-
-
 
 class NodoRed {
 protected:
@@ -67,8 +63,6 @@ public:
 
 //  ========================== NODO CONSUMIDOR  ==========================
 
-
-
 class NodoConsumidor : public NodoRed {
 
 private:
@@ -84,7 +78,7 @@ public:
   double calcularExcedente() const override {
 
         if(balanceEnergia > 0.0) {
-            return 0.0l;
+            return 0.0;
         }
 
         return balanceEnergia;
@@ -113,7 +107,6 @@ public:
 
 
 //  ========================== NODO ALMACENAMIENTO  ==========================
-
 
 class NodoAlmacenamiento : public NodoRed {
 private:
@@ -151,7 +144,6 @@ public:
 
 //  ========================== TRANSACCION ENERGIA  ==========================
 
-
 struct TransaccionEnergia {
     int idVendedor;
     int idComprador;
@@ -173,7 +165,6 @@ struct TransaccionEnergia {
 };
 
 //  ========================== NODO CONSUMIDOR  ==========================
-
 
 class GridManager {
 public:

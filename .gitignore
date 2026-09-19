@@ -9,5 +9,8 @@ ecogrid
 app
 programa
 
+# Cabeceras precompiladas
+*.gch
+
 # Bases generadas
 ejemplo.db
