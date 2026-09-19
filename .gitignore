@@ -3,3 +3,11 @@ g++
 mi_programa
 
 *.o
+
+# Ejecutables
+ecogrid
+app
+programa
+
+# Bases generadas
+ejemplo.db
