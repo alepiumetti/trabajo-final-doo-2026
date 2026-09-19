@@ -42,6 +42,14 @@ int main() {
   std::cout << "Creando tablas SQLite3...\n";
   gestor.crearTablas(db);
 
+  // Conexión propia para las consultas del tick (crearTablas cierra la suya).
+  if (sqlite3_open("ejemplo.db", &db) != SQLITE_OK) {
+    std::cerr << "No se pudo abrir la base de datos: " << sqlite3_errmsg(db)
+              << "\n";
+    sqlite3_close(db);
+    return 1;
+  }
+
   // TODO: nodos y batería deberían salir de cargarNodos(db, nodos).
   std::vector<std::unique_ptr<NodoRed>> nodos;
   cargarNodos(db, nodos);
@@ -91,20 +99,43 @@ std::string rutaTick(int hora) {
 
 void procesarTick(GridManager& gm, NodoAlmacenamiento& bateria,
                   double precioBaseHora) {
-  // TODO: orquestar la simulación del tick:
-  //   1. gm.ejecutarMatching();                                  // transacciones P2P
-  //   2. gm.transferirExcedentesABateria(bateria, precioBaseHora); // excedentes -> batería
-  //   3. gm.limpiarLibroAlFinalDelTick();                        // remanentes (log y descarte)
-  (void)gm;
-  (void)bateria;
-  (void)precioBaseHora;
+  // 1. Transacciones P2P (loguea cada una).
+  gm.ejecutarMatching();
+
+  // 2. Excedentes no vendidos -> batería (loguea cada absorción).
+  gm.transferirExcedentesABateria(bateria, precioBaseHora);
+
+  // 3. Remanentes: log de demanda insatisfecha y excedente no absorbido.
+  gm.limpiarLibroAlFinalDelTick();
 }
 
 double obtenerPrecioBase(sqlite3* db, int hora) {
-  // TODO: SELECT precio_base_kwh FROM CONFIG_TARIFAS WHERE hora = ?;
-  (void)db;
-  (void)hora;
-  return 0.0;
+  if (db == nullptr) {
+    std::cerr << "obtenerPrecioBase: base de datos no abierta.\n";
+    return 0.0;
+  }
+
+  const char* sql = "SELECT precio_base_kwh FROM CONFIG_TARIFAS WHERE hora = ?;";
+  sqlite3_stmt* stmt = nullptr;
+
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    std::cerr << "Error preparando CONFIG_TARIFAS: " << sqlite3_errmsg(db)
+              << "\n";
+    return 0.0;
+  }
+
+  sqlite3_bind_int(stmt, 1, hora);
+
+  double precio = 0.0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    precio = sqlite3_column_double(stmt, 0);
+  } else {
+    std::cerr << "Sin precio base definido para la hora " << hora
+              << " (CONFIG_TARIFAS vacía?), se usa 0.0\n";
+  }
+
+  sqlite3_finalize(stmt);
+  return precio;
 }
 
 void persistirTransacciones(sqlite3* db,
