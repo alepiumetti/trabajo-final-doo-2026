@@ -21,7 +21,7 @@ int main() {
   auto ordenes = gestor.leerCSV("./datos/ofertas_01.csv");
 
   for (auto &o : ordenes) {
-    std::cout << "Orden " << o.idOrden << " - "
+    std::cout << "Orden " << o.idOrden << " - " << "Nodo " << o.idNodo << " - "
               << (o.esCompra ? "compra" : "venta") << " " << o.kwh << " kWh a $"
               << o.precio << std::endl;
   }
