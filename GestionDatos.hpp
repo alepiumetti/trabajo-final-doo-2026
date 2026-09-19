@@ -6,7 +6,10 @@
 #include <string>
 #include <vector>
 
+#include "types.hpp"
+
 static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+  std::cout << "Nodos creados: \n";
   for (int i = 0; i < argc; i++) {
     std::cout << azColName[i] << ": " << (argv[i] ? argv[i] : "NULL") << "\n";
   }
@@ -112,15 +115,13 @@ public:
     std::cout << "Tablas y trigger creados correctamente.\n";
   };
 
-  static std::vector<TransaccionEnergia>
-  leerCSV(const std::string &rutaArchivo) {
-    // Inicializo las filas como vector de vectores de strings
-    std::vector<TransaccionEnergia> filas;
+  static std::vector<Orden> leerCSV(const std::string &rutaArchivo) {
+    std::vector<Orden> filas;
 
     std::ifstream archivo(rutaArchivo);
 
     if (!archivo.is_open()) {
-      throw std::runtime_error("No se puso abrir: " + rutaArchivo);
+      throw std::runtime_error("No se pudo abrir: " + rutaArchivo);
     }
 
     std::string linea;
@@ -138,21 +139,22 @@ public:
         columnas.push_back(campo);
       }
 
-      if (columnas.size() < 6) {
+      // Formato CSV: id_orden,lado,id_nodo,kwh,precio
+      if (columnas.size() < 5) {
         std::cerr << "Fila inválida (se omite): " << linea << std::endl;
         continue;
       }
 
-      TransaccionEnergia t;
+      Orden o;
+      o.idOrden = std::stoi(columnas[0]);
+      o.esCompra =
+          (columnas[1] == "compra"); // "compra" -> true, "venta" -> false
+      o.idNodo = std::stoi(columnas[2]);
+      o.kwh = std::stod(columnas[3]);
+      o.precio = std::stod(columnas[4]);
+      o.secuencia = 0; // la asigna GridManager.insertarOrden()
 
-      t.id = columnas[0];
-      t.fecha = columnas[1];
-      t.tipo = columnas[2];
-      t.cantidadKWh = std::stod(columnas[3]); // string -> double
-      t.precioPOrKWh = std::stod(columnas[4]);
-      t.cliente = columnas[5];
-
-      filas.push_back(t);
+      filas.push_back(o);
     }
 
     return filas;

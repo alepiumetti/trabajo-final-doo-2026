@@ -6,8 +6,9 @@
 #include <string>
 #include <vector>
 
-#include "GestionDatos.hpp"
 #include "types.hpp"
+
+#include "GestionDatos.hpp"
 
 int main() {
 
@@ -15,11 +16,15 @@ int main() {
 
   sqlite3 *db = nullptr;
 
-  std::cout << "Crear tablas SQLite3";
   gestor.crearTablas(db);
-  std::cout << "Tablas creadas";
 
-  auto filas = gestor.leerCSV("./datos/ofertas_01.csv");
+  auto ordenes = gestor.leerCSV("./datos/ofertas_01.csv");
+
+  for (auto &o : ordenes) {
+    std::cout << "Orden " << o.idOrden << " - "
+              << (o.esCompra ? "compra" : "venta") << " " << o.kwh << " kWh a $"
+              << o.precio << std::endl;
+  }
 
   return 0;
 }
