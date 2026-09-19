@@ -1,0 +1,3 @@
+id_orden,lado,id_nodo,kwh,precio
+7001,venta,50,8,2.0
+8001,compra,51,3,1.8

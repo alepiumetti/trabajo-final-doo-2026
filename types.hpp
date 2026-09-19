@@ -1,14 +1,19 @@
 // #include <soci/soci.h>
 // #include <soci/oracle/soci-oracle.h>
+#ifndef types_h
+#define types_h
+
+#include <cstdint>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <optional>
 #include <string>
 #include <vector>
-#include <optional>
-#include <iostream>
-#include <iomanip>
-#include <map>
-#include <fstream>
 
-#define PRECIO_CLEARING(precio_compra_max, precio_venta_min) ((precio_compra_max + previo_venta_min) / 2.0)
+#define PRECIO_CLEARING(precio_compra_max, precio_venta_min)                   \
+  ((precio_compra_max + precio_venta_min) / 2.0)
 
 struct Orden {
   int idOrden;
@@ -37,8 +42,7 @@ NodoRed (abstracta):
         virtual double calcularExcedente() = 0;
 */
 
-class NodoRed
-{
+class NodoRed {
 private:
   int id;
   std::string ubicacion;
@@ -59,15 +63,9 @@ NodoConsumidor (hereda de NodoRed):
 
 */
 
-class NodoConsumidor : public NodoRed
-{
+class NodoConsumidor : public NodoRed {
 public:
-  enum class Perfil
-  {
-    Residencial,
-    Comercial,
-    Industrial
-  };
+  enum class Perfil { Residencial, Comercial, Industrial };
 
 private:
   Perfil PerfilConsumo;
@@ -85,21 +83,21 @@ NodoProsumidor (hereda de NodoRed):
     double produccion,
     double consumo.
 
-  - calcularExcedente() retorna produccion - consumo (positivo si hay excedente).
+  - calcularExcedente() retorna produccion - consumo (positivo si hay
+excedente).
 
 */
 
-class NodoProsumidor : public NodoRed
-{
+class NodoProsumidor : public NodoRed {
 private:
   double produccion;
   double consumo;
 
 public:
   double calcularExcedente(); // Implementarlo
- 
-  NodoProsumido(/* args */);
-  ~NodoProsumido();
+
+  NodoProsumidor(/* args */);
+  ~NodoProsumidor();
 };
 
 /*
@@ -125,13 +123,13 @@ NodoAlmacenamiento (hereda de NodoRed):
 
 */
 
-class NodoAlmacenamiento : public NodoRed
-{
+class NodoAlmacenamiento : public NodoRed {
 private:
   double cargaActual;
 
-public:  
-  double calcularExcedente(); // Implementarlo - Hay que sobrescribir metodo para absorber y lierar energia
+public:
+  double calcularExcedente(); // Implementarlo - Hay que sobrescribir metodo
+                              // para absorber y lierar energia
   NodoAlmacenamiento();
   ~NodoAlmacenamiento();
 };
@@ -148,15 +146,16 @@ GridManager: Contiene el libro de órdenes y ejecuta el matching.
 
 */
 
-class GridManager
-{
+class GridManager {
 private:
-  void procesarTick(const std::vector &ofertasCSV);
+  // void procesarTick(const std::vector &ofertasCSV);
 
 public:
   GridManager();
 
-  void persistirTransacciones(const std::vector &trasn);
+  // void persistirTransacciones(const std::vector &trasn);
 
   ~GridManager();
 };
+
+#endif // types_h
