@@ -112,10 +112,10 @@ public:
     std::cout << "Tablas y trigger creados correctamente.\n";
   };
 
-  static std::vector<std::vector<std::string>>
+  static std::vector<TransaccionEnergia>
   leerCSV(const std::string &rutaArchivo) {
     // Inicializo las filas como vector de vectores de strings
-    std::vector<std::vector<std::string>> filas;
+    std::vector<TransaccionEnergia> filas;
 
     std::ifstream archivo(rutaArchivo);
 
@@ -133,11 +133,26 @@ public:
 
       std::stringstream ss(linea);
       std::string campo;
-      std::vector<std::string> fila;
+      std::vector<std::string> columnas;
       while (getline(ss, campo, ',')) {
-        fila.push_back(campo);
+        columnas.push_back(campo);
       }
-      filas.push_back(fila);
+
+      if (columnas.size() < 6) {
+        std::cerr << "Fila inválida (se omite): " << linea << std::endl;
+        continue;
+      }
+
+      TransaccionEnergia t;
+
+      t.id = columnas[0];
+      t.fecha = columnas[1];
+      t.tipo = columnas[2];
+      t.cantidadKWh = std::stod(columnas[3]); // string -> double
+      t.precioPOrKWh = std::stod(columnas[4]);
+      t.cliente = columnas[5];
+
+      filas.push_back(t);
     }
 
     return filas;
