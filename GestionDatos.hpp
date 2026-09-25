@@ -84,6 +84,24 @@ public:
       (16, 1.55), (17, 1.70), (18, 1.95), (19, 2.20),
       (20, 2.35), (21, 2.05), (22, 1.55), (23, 1.10);
 
+    -- Nodos iniciales (semilla). INSERT OR IGNORE: no pisa saldos
+    -- ya persistidos entre ejecuciones.
+    INSERT OR IGNORE INTO NODOS (id_nodo, ubicacion, tipo, saldo_cuenta, perfil_consumo) VALUES
+      (1,  'Residencial A', 'Consumidor', 100, 'Residencial'),
+      (2,  'Casa Solar',    'Prosumidor', 50,  NULL),
+      (3,  'Industrial A',  'Consumidor', 100, 'Industrial'),
+      (4,  'Prosumidor D',  'Prosumidor', 150, NULL),
+      (5,  'Bateria E',     'Bateria',    1000000, NULL),
+      (10, 'Industrial B',  'Consumidor', 500, 'Industrial'),
+      (11, 'Comercial A',   'Consumidor', 200, 'Comercial'),
+      (20, 'Solar 1',       'Prosumidor', 100, NULL),
+      (21, 'Solar 2',       'Prosumidor', 80,  NULL),
+      (22, 'Solar 3',       'Prosumidor', 50,  NULL),
+      (30, 'Residencial B', 'Consumidor', 15,  'Residencial'),
+      (40, 'Solar 4',       'Prosumidor', 60,  NULL),
+      (50, 'Solar 5',       'Prosumidor', 100, NULL),
+      (51, 'Residencial C', 'Consumidor', 200, 'Residencial');
+
     CREATE TRIGGER IF NOT EXISTS trg_validar_saldo
     BEFORE INSERT ON TRANSACCIONES
     FOR EACH ROW
@@ -122,63 +140,32 @@ public:
     std::cout << "Tablas y trigger creados correctamente.\n";
   }
 
-  std::vector<DatoNodo> cargarNodos(const std::string &rutaArchivo) {
+  std::vector<DatoNodo> cargarNodosDesdeBD() {
     std::vector<DatoNodo> nodos;
 
-    std::ifstream archivo(rutaArchivo);
-    if (!archivo.is_open()) {
-      throw std::runtime_error("No se pudo abrir: " + rutaArchivo);
+    const char *sql = "SELECT id_nodo, ubicacion, tipo, saldo_cuenta, "
+                      "perfil_consumo FROM NODOS ORDER BY id_nodo;";
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+      std::cerr << "Error preparando SELECT NODOS: " << sqlite3_errmsg(db)
+                << "\n";
+      return nodos;
     }
 
-    std::string linea;
-    bool esCabecera = true;
-    while (getline(archivo, linea)) {
-      if (esCabecera) {
-        esCabecera = false;
-        continue;
-      }
-      if (linea.empty()) continue;
+    auto texto = [](const unsigned char *p) -> std::string {
+      return p ? reinterpret_cast<const char *>(p) : std::string();
+    };
 
-      std::stringstream ss(linea);
-      std::string campo;
-      std::vector<std::string> columnas;
-      while (getline(ss, campo, ',')) {
-        columnas.push_back(campo);
-      }
-
-      // Formato CSV: id_nodo,ubicacion,tipo,saldo_cuenta,perfil_consumo
-      if (columnas.size() < 4) {
-        std::cerr << "Fila inválida (se omite): " << linea << std::endl;
-        continue;
-      }
-
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
       DatoNodo n;
-      n.id = std::stoi(columnas[0]);
-      n.ubicacion = columnas[1];
-      n.tipo = columnas[2];
-      n.saldo = std::stod(columnas[3]);
-      n.perfil = (columnas.size() > 4) ? columnas[4] : "";
-
+      n.id = sqlite3_column_int(stmt, 0);
+      n.ubicacion = texto(sqlite3_column_text(stmt, 1));
+      n.tipo = texto(sqlite3_column_text(stmt, 2));
+      n.saldo = sqlite3_column_double(stmt, 3);
+      n.perfil = texto(sqlite3_column_text(stmt, 4));
       nodos.push_back(n);
-
-      const char *sqlInsert =
-          "INSERT OR REPLACE INTO NODOS "
-          "(id_nodo, ubicacion, tipo, saldo_cuenta, perfil_consumo) "
-          "VALUES (?, ?, ?, ?, ?);";
-      sqlite3_stmt *stmt = nullptr;
-      if (sqlite3_prepare_v2(db, sqlInsert, -1, &stmt, nullptr) == SQLITE_OK) {
-        sqlite3_bind_int(stmt, 1, n.id);
-        sqlite3_bind_text(stmt, 2, n.ubicacion.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 3, n.tipo.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_double(stmt, 4, n.saldo);
-        if (n.perfil.empty())
-          sqlite3_bind_null(stmt, 5);
-        else
-          sqlite3_bind_text(stmt, 5, n.perfil.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_step(stmt);
-      }
-      sqlite3_finalize(stmt);
     }
+    sqlite3_finalize(stmt);
 
     return nodos;
   }

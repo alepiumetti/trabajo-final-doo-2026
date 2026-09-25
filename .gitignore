@@ -10,6 +10,6 @@ ecogrid.exe
 app
 programa
 *.out
-
+*.db
 # Bases generadas
 ejemplo.db

@@ -29,7 +29,7 @@ int main() {
 
   gestor.crearTablas();
 
-  auto datosNodos = gestor.cargarNodos("./datos/nodos.csv");
+  auto datosNodos = gestor.cargarNodosDesdeBD();
 
   std::map<int, NodoRed *> nodos;
   for (const auto &d : datosNodos) {
