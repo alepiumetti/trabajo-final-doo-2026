@@ -83,6 +83,17 @@ public:
       precio_base_kwh REAL NOT NULL
     );
 
+    -- Precio base horario (24 horas) al que la bateria compra los
+    -- excedentes sin comprador. OR REPLACE para que sea idempotente
+    -- al reejecutar sobre un ejemplo.db ya existente.
+    INSERT OR REPLACE INTO CONFIG_TARIFAS (hora, precio_base_kwh) VALUES
+      (0, 0.85), (1, 0.80), (2, 0.78), (3, 0.78),
+      (4, 0.82), (5, 0.90), (6, 1.05), (7, 1.20),
+      (8, 1.35), (9, 1.45), (10, 1.50), (11, 1.55),
+      (12, 1.60), (13, 1.58), (14, 1.55), (15, 1.52),
+      (16, 1.55), (17, 1.70), (18, 1.95), (19, 2.20),
+      (20, 2.35), (21, 2.05), (22, 1.55), (23, 1.10);
+
     CREATE TRIGGER IF NOT EXISTS trg_validar_saldo
     BEFORE INSERT ON TRANSACCIONES
     FOR EACH ROW

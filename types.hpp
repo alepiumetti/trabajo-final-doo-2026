@@ -14,10 +14,7 @@
 #include <string>
 #include <vector>
 
-
-
 enum PerfilConsumo { Residencial, Comercial, Industrial };
-
 
 struct Orden {
   int idOrden;
