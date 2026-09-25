@@ -56,6 +56,9 @@ public:
 
   int getId() const { return id;}
 
+  double getSaldoCuenta() const { return saldoCuenta; }
+  void setSaldoCuenta(double nuevoSaldo) { saldoCuenta = nuevoSaldo; }
+
   virtual ~NodoRed() = default;
 
 };
@@ -125,6 +128,10 @@ public:
         return cargaActual;
     };
 
+    double getCargaActual() const { return cargaActual; }
+
+    double capacidadDisponible() const { return capacidadMax - cargaActual; }
+
     double absorberEnergia(double kwh) {
         double espacio = capacidadMax - cargaActual;
         double absorbido = std::min(kwh, espacio);
@@ -191,6 +198,13 @@ private:
     // Callback para logging (desacopla de std::cout)
     std::function<void(const std::string&)> logger;
 
+    // Callbacks para consultar/actualizar saldo (desacoplan la persistencia)
+    std::function<double(int)> consultarSaldo;
+    std::function<bool(int, double)> actualizarSaldo;
+
+    // Órdenes de compra sin saldo suficiente (se reintentan dentro del tick)
+    std::vector<Orden> pendientesPorSaldo;
+
     void log(const std::string& msg) {
         if (logger) logger(msg);
     }
@@ -200,6 +214,13 @@ public:
 
     explicit GridManager(std::function<void(const std::string&)> logFn)
         : logger(std::move(logFn)) {}
+
+    GridManager(std::function<double(int)> consultarSaldoFn,
+                std::function<bool(int, double)> actualizarSaldoFn,
+                std::function<void(const std::string&)> logFn)
+        : logger(std::move(logFn)),
+          consultarSaldo(std::move(consultarSaldoFn)),
+          actualizarSaldo(std::move(actualizarSaldoFn)) {}
 
     // ----------------------------------------------------------
     // Inserción de órdenes en el libro
@@ -238,40 +259,7 @@ public:
     // ----------------------------------------------------------
     std::vector<TransaccionEnergia> ejecutarMatching() {
         transaccionesDelTick.clear();
-
-        while (!bidMap.empty() && !askMap.empty()) {
-            auto mejorBid = bidMap.begin(); // mayor precio de compra
-            auto mejorAsk = askMap.begin(); // menor precio de venta
-
-            // Si los precios NO son compatibles, fin del matching
-            if (mejorBid->first < mejorAsk->first) {
-                break;
-            }
-
-            // Copias locales de las órdenes al frente de cada cola
-            Orden ordenCompra = mejorBid->second.front();
-            Orden ordenVenta  = mejorAsk->second.front();
-
-            double energia = std::min(ordenCompra.kwh, ordenVenta.kwh);
-            double precio  = (ordenCompra.precio + ordenVenta.precio) / 2.0;
-
-            // Registrar transacción en memoria
-            registrarTransaccion(ordenVenta.idNodo, ordenCompra.idNodo,
-                                 energia, precio);
-
-            // Actualizar remanentes
-            ordenCompra.kwh -= energia;
-            ordenVenta.kwh  -= energia;
-
-            // Reencolar o eliminar según remanente
-            actualizarCola(mejorBid, ordenCompra);
-            actualizarCola(mejorAsk, ordenVenta);
-
-            // Limpiar entradas del mapa si la cola quedó vacía
-            if (mejorBid->second.empty()) bidMap.erase(mejorBid);
-            if (mejorAsk->second.empty()) askMap.erase(mejorAsk);
-        }
-
+        realizarMatching();
         return transaccionesDelTick;
     }
 
@@ -291,11 +279,28 @@ public:
                     continue;
                 }
 
-                double absorbido = bateria.absorberEnergia(orden.kwh);
-                if (absorbido <= UMBRAL) {
+                // La oferta propia de la batería es energía ya almacenada:
+                // no debe "absorberse" a sí misma si no se vendió.
+                if (orden.idNodo == bateria.getId()) {
+                    cola.pop();
+                    continue;
+                }
+
+                double absorbible = std::min(orden.kwh, bateria.capacidadDisponible());
+                if (absorbible <= UMBRAL) {
                     log("[Bateria] Capacidad llena, no puede absorber más.");
                     return;
                 }
+
+                double monto = absorbible * precioBaseHora;
+                if (consultarSaldo && actualizarSaldo &&
+                    consultarSaldo(bateria.getId()) < monto) {
+                    log("[Bateria] Saldo insuficiente para absorber " +
+                        std::to_string(absorbible) + " kWh.");
+                    return;
+                }
+
+                double absorbido = bateria.absorberEnergia(orden.kwh);
 
                 // Transacción batería <- vendedor
                 registrarTransaccion(orden.idNodo, bateria.getId(),
@@ -354,6 +359,14 @@ public:
             }
         }
         bidMap.clear();
+
+        for (const Orden& orden : pendientesPorSaldo) {
+            log("[Demanda insatisfecha por saldo] Nodo " +
+                std::to_string(orden.idNodo) +
+                " no pudo comprar " + std::to_string(orden.kwh) +
+                " kWh a " + std::to_string(orden.precio));
+        }
+        pendientesPorSaldo.clear();
     }
 
     // ----------------------------------------------------------
@@ -372,7 +385,75 @@ public:
         return transaccionesDelTick;
     }
 
+    // Reintenta las órdenes de compra que quedaron sin saldo (dentro del tick)
+    void reevaluarPendientesPorSaldo() {
+        if (pendientesPorSaldo.empty()) return;
+
+        for (const Orden& orden : pendientesPorSaldo) {
+            Orden reinsertada = orden;
+            reinsertada.secuencia = ++contadorSecuencia;
+            bidMap[reinsertada.precio].push(reinsertada);
+        }
+        pendientesPorSaldo.clear();
+
+        realizarMatching();
+    }
+
 private:
+    // ----------------------------------------------------------
+    // Algoritmo de Matching (Sección 5.2 del PDF)
+    // ----------------------------------------------------------
+    void realizarMatching() {
+        while (!bidMap.empty() && !askMap.empty()) {
+            auto mejorBid = bidMap.begin(); // mayor precio de compra
+            auto mejorAsk = askMap.begin(); // menor precio de venta
+
+            // Si los precios NO son compatibles, fin del matching
+            if (mejorBid->first < mejorAsk->first) {
+                break;
+            }
+
+            // Copias locales de las órdenes al frente de cada cola
+            Orden ordenCompra = mejorBid->second.front();
+            Orden ordenVenta  = mejorAsk->second.front();
+
+            double energia = std::min(ordenCompra.kwh, ordenVenta.kwh);
+            double precio  = (ordenCompra.precio + ordenVenta.precio) / 2.0;
+            double monto   = energia * precio;
+
+            // Si el comprador no tiene saldo, la orden queda pendiente
+            // para reintentarla dentro del tick (tras las transferencias).
+            if (consultarSaldo && actualizarSaldo &&
+                consultarSaldo(ordenCompra.idNodo) < monto) {
+                mejorBid->second.pop();
+                if (mejorBid->second.empty()) bidMap.erase(mejorBid);
+                pendientesPorSaldo.push_back(ordenCompra);
+                log("[Saldo insuficiente] Nodo " +
+                    std::to_string(ordenCompra.idNodo) +
+                    " no puede pagar " + std::to_string(monto) +
+                    " (kWh=" + std::to_string(energia) +
+                    " a $" + std::to_string(precio) + ")");
+                continue;
+            }
+
+            // Registrar transacción en memoria
+            registrarTransaccion(ordenVenta.idNodo, ordenCompra.idNodo,
+                                 energia, precio);
+
+            // Actualizar remanentes
+            ordenCompra.kwh -= energia;
+            ordenVenta.kwh  -= energia;
+
+            // Reencolar o eliminar según remanente
+            actualizarCola(mejorBid, ordenCompra);
+            actualizarCola(mejorAsk, ordenVenta);
+
+            // Limpiar entradas del mapa si la cola quedó vacía
+            if (mejorBid->second.empty()) bidMap.erase(mejorBid);
+            if (mejorAsk->second.empty()) askMap.erase(mejorAsk);
+        }
+    }
+
     // ----------------------------------------------------------
     // Registra una transacción en el vector del tick
     // ----------------------------------------------------------
@@ -380,6 +461,15 @@ private:
                               double kwh, double precio) {
         transaccionesDelTick.emplace_back(
             idVendedor, idComprador, kwh, precio, tickActual);
+
+        // Debitar al comprador y acreditar al vendedor (saldo en dominio)
+        if (consultarSaldo && actualizarSaldo) {
+            double monto = kwh * precio;
+            double saldoVendedor = consultarSaldo(idVendedor);
+            double saldoComprador = consultarSaldo(idComprador);
+            actualizarSaldo(idVendedor, saldoVendedor + monto);
+            actualizarSaldo(idComprador, saldoComprador - monto);
+        }
 
         log("[Transaccion] Vendedor=" + std::to_string(idVendedor) +
             " Comprador=" + std::to_string(idComprador) +
