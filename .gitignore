@@ -6,8 +6,10 @@ mi_programa
 
 # Ejecutables
 ecogrid
+ecogrid.exe
 app
 programa
+*.out
 
 # Bases generadas
 ejemplo.db
