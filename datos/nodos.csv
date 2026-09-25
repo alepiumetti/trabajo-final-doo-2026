@@ -1,0 +1,17 @@
+id_nodo,ubicacion,tipo,saldo_cuenta,perfil_consumo
+1,Residencial A,Consumidor,100.0,Residencial
+2,Residencial B,Consumidor,250.0,Residencial
+3,Industrial C,Consumidor,300.0,Industrial
+4,Prosumidor D,Prosumidor,200.0,
+5,Prosumidor E,Prosumidor,200.0,
+6,Prosumidor F,Prosumidor,200.0,
+7,Bateria Principal,Bateria,100000.0,
+10,Comercial G,Consumidor,200.0,Comercial
+11,Comercial H,Consumidor,200.0,Comercial
+20,Prosumidor I,Prosumidor,150.0,
+21,Prosumidor J,Prosumidor,150.0,
+22,Prosumidor K,Prosumidor,150.0,
+30,Industrial L,Consumidor,250.0,Industrial
+40,Prosumidor M,Prosumidor,150.0,
+50,Prosumidor N,Prosumidor,150.0,
+51,Residencial O,Consumidor,250.0,Residencial
