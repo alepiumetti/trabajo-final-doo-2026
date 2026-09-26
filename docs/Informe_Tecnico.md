@@ -264,10 +264,10 @@ lectura de `NODOS` por tick, despreciable para 24 ticks.
 
 ### 4.1 Los CSV ya no matan el proceso
 
-Antes, `leerCSV` hacía:
+El parser de CSV hace:
 
 ```cpp
-o.kwh   = std::stod(columnas[3]);   // lanza std::invalid_argument
+o.kwh    = std::stod(columnas[3]);   // lanza std::invalid_argument
 o.precio = std::stod(columnas[4]);
 ```
 
@@ -443,6 +443,42 @@ supone, y se comparan **transacción por transacción y saldo por saldo**:
   ruta de rollback con `--trigger-prueba`, y en las dos suites de pruebas.
 - **`PRAGMA integrity_check`** y **`PRAGMA foreign_key_check`**: limpios.
 
+### 6.4 Código muerto
+
+Se auditó cada función, método y campo del proyecto contando sus
+referencias reales. Se eliminó lo que no tenía ningún llamador:
+
+| Eliminado | Por qué |
+|---|---|
+| `NodoAlmacenamiento::getCapacidadMax()` | `estado()` y `capacidadDisponible()` leen el atributo directo |
+| `TransaccionEnergia::getMontoTotal()` | el monto se calcula inline como `kwh * precio` |
+| `GridManager::getTransacciones()` | `procesarTick` devuelve `transaccionesDelTick` directo |
+| `GridManager::libroVacio()` | sin llamadores |
+| `gestionDatos::leerCSV()` | wrapper de `leerCSVConInforme` sin ningún llamador |
+| `udfAlloc()` / `udfFree()` | `sqlite3_create_function_v2` **no recibe** callbacks de allocator: su firma es `(db, nombre, nArg, eTextRep, pApp, xFunc, xStep, xFinal, xDestroy)`. No podían invocarse nunca |
+| `TransaccionEnergia() = default` | nadie default-construye la entidad |
+| `<fstream>`, `<iomanip>`, `<optional>` de `types.hpp`; `<unordered_map>` de `config.hpp`; `<fstream>`, `<sstream>`, `<utility>` de `main.cpp` | sin uso |
+
+Quitar `<iomanip>` de `types.hpp` destapó que `tests/test_datos.cpp` usaba
+`std::setprecision` confiando en ese include transitivo; se le agregó el
+include propio. Es el tipo de dependencia oculta que aparecen al borrar
+includes en vez de dejarlos.
+
+**Lo que NO se eliminó, y por qué:**
+
+- **`calcularExcedente()`** — se declara, se sobrescribe en las tres subclases
+  y **no se llama nunca**. No es código muerto: el enunciado lo exige
+  literalmente (`virtual double calcularExcedente() = 0;` en `NodoRed`, más el
+  valor que debe retornar cada subclase) y además exige "uso sólido de POO…
+  herencia, polimorfismo". Es la única función virtual del diseño, así que
+  borrarla dejaría de ser polimórfica la jerarquía. Queda como interfaz
+  especificada y sin integrar: ver §8.
+- **`TransaccionEnergia::timestamp`** — se escribe en el constructor y no se
+  lee (la columna `fecha_transaccion` la completa SQLite con
+  `CURRENT_TIMESTAMP`). El enunciado pide el atributo, así que se conserva.
+- **`Orden::idOrden` y `secuencia`** — el enunciado los declara. `idOrden` se
+  parsea y valida pero no se lee; `secuencia` sí, es el desempate FIFO.
+
 ---
 
 ## 7. Diagramas
@@ -495,7 +531,20 @@ Lo que sí quedó preparado para que el cambio sea acotado:
 Si se consigue acceso a una instancia Oracle, el trabajo es escribir un
 `CapaDatosOracle` con la misma interfaz pública y elegirlo por configuración.
 
-### 8.2 Otros puntos
+### 8.2 `calcularExcedente()` está definido pero no integrado
+
+La función virtual que el enunciado define para las tres subclases de
+`NodoRed` no se invoca desde ningún punto del flujo: ni el matching, ni la
+transferencia de excedentes, ni la persistencia la llaman. La jerarquía se
+construye y se usa (id, saldo, y los métodos de la batería), pero el
+polimorfismo de `calcularExcedente` no participa de ninguna decisión.
+
+Lo más probable es que sea una funcionalidad que quedó a medio integrar, no
+que sobre: es exactamente el hook que usaría el paso "Excedentes a batería"
+para saber cuánto sobró de cada nodo, que hoy se calcula de otra forma. Se
+dejó intacta por ser requisito explícito del enunciado (§6.4).
+
+### 8.3 Otros puntos
 
 - **`docs/` en PNG/PDF** — ver §7. Faltan los archivos renderizados.
 - **Los CSV y las tarifas son datos de la cátedra.** Los CSVs de `datos/` se

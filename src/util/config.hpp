@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <fstream>
 #include <string>
-#include <unordered_map>
 
 struct Config {
   std::string dbPath = "./ejemplo.db";

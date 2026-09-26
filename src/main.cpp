@@ -12,14 +12,11 @@
 // archivo se limita a cablear las capas y a manejar el ciclo del dia.
 
 #include <cstdio>
-#include <fstream>
 #include <iostream>
 #include <map>
 #include <memory>
-#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "GestionDatos.hpp"

@@ -51,7 +51,6 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     - capacidadMax : double
     --
     + getCargaActual() : double
-    + getCapacidadMax() : double
     + capacidadDisponible() : double
     + absorberEnergia(kwh) : double
     + liberarEnergia(kwh) : double
@@ -70,9 +69,8 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     - idComprador : int
     - kwh : double
     - precio : double
+    - timestamp : system_clock::time_point
     - tickHora : int
-    --
-    + getMontoTotal() : double
   }
 
   class GridManager {
@@ -97,7 +95,6 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     + reevaluarPendientesPorSaldo() : void
     + limpiarLibroAlFinalDelTick() : void
     + ordenesDescartadas() : size_t
-    + libroVacio() : bool
     + setTickActual(hora) : void
     + setDebug(d) : void
   }
@@ -130,7 +127,6 @@ package "Persistencia (src/GestionDatos.hpp)" {
     + abortarTransaccion() : bool
     + insertarTransaccion(t) : bool
     + {static} leerCSVConInforme(ruta) : InformeCSV
-    + {static} leerCSV(ruta) : vector<Orden>
     + activarTriggerPrueba(limite) : void
     + desactivarTriggerPrueba() : void
   }

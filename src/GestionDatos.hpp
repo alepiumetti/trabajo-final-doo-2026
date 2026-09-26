@@ -162,12 +162,8 @@ private:
     }
   }
 
-  // ------------------------------------------------------------------
-  // Procedimiento almacenado (sección 4.2 del PDF)
-  // ------------------------------------------------------------------
-  // El cuerpo está más arriba, junto a registrarProcedimientoAlmacenado.
-  static void *udfAlloc(int nByte) { return sqlite3_malloc64(nByte); }
-  static void udfFree(void *p) { sqlite3_free(p); }
+  // Destructor del contexto de la función SQL. sqlite3 lo llama cuando se
+  // cierra la conexión o se re-registra la función.
   static void udfError(void *p) {
     auto *c = static_cast<CtxProc *>(p);
     if (c && c->errUltimo)
@@ -753,12 +749,6 @@ public:
     }
 
     return informe;
-  }
-
-  // Mantiene la firma original para los callers que no necesitan el
-  // informe, pero ya no lanza: devuelve vacío si el archivo falla.
-  static std::vector<Orden> leerCSV(const std::string &rutaArchivo) {
-    return leerCSVConInforme(rutaArchivo).filas;
   }
 
 };
