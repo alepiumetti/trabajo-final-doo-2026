@@ -1,0 +1,206 @@
+@startuml diagrama_clases
+' ============================================================
+' EcoGrid - Diagrama de clases (UML)
+'
+' Fuente de verdad: los .puml de este directorio. Para renderizar:
+'     ./docs/render.sh          (necesita plantuml + graphviz)
+' o el servidor público de PlantUML.
+'
+' Cubre las tres capas del enunciado:
+'   - Dominio / motor de subasta  (src/types.hpp)
+'   - Persistencia               (src/GestionDatos.hpp)
+'   - Configuración              (src/util/config.hpp)
+' ============================================================
+
+title EcoGrid — Diagrama de Clases
+
+package "Dominio — motor de subasta (src/types.hpp)" {
+
+  class Orden <<struct>> {
+    - idOrden : int
+    - esCompra : bool
+    - idNodo : int
+    - kwh : double
+    - precio : double
+    - secuencia : uint64_t
+    --
+    + Orden(idOrden, esCompra, idNodo, kwh, precio)
+  }
+
+  abstract class NodoRed {
+    - id : int
+    - ubicacion : string
+    - saldoCuenta : double
+    - balanceEnergia : double
+    --
+    + {abstract} calcularExcedente() : double
+    + getId() : int
+    + getSaldoCuenta() : double
+    + setSaldoCuenta(nuevo : double) : void
+  }
+
+  class NodoConsumidor {
+    - perfil : PerfilConsumo
+  }
+
+  class NodoProsumidor {
+  }
+
+  class NodoAlmacenamiento {
+    - cargaActual : double
+    - capacidadMax : double
+    --
+    + getCargaActual() : double
+    + getCapacidadMax() : double
+    + capacidadDisponible() : double
+    + absorberEnergia(kwh) : double
+    + liberarEnergia(kwh) : double
+    + restablecerCarga(kwh) : void
+    + estado() : string
+  }
+
+  enum PerfilConsumo {
+    Residencial
+    Comercial
+    Industrial
+  }
+
+  class TransaccionEnergia <<struct>> {
+    - idVendedor : int
+    - idComprador : int
+    - kwh : double
+    - precio : double
+    - tickHora : int
+    --
+    + getMontoTotal() : double
+  }
+
+  class GridManager {
+    - bidMap : map<double, queue<Orden>, greater<double>>
+    - askMap : map<double, queue<Orden>>
+    - contadorSecuencia : uint64_t
+    - transaccionesDelTick : vector<TransaccionEnergia>
+    - pendientesPorSaldo : vector<Orden>
+    - ordenesDescartadas_ : size_t
+    - tickActual : int
+    - UMBRAL : const double = 0.001
+    - consultarSaldo : function<double(int)>
+    - actualizarSaldo : function<bool(int,double)>
+    - nodoConocido : function<bool(int)>
+    - logger : function<void(string)>
+    --
+    + procesarTick(ofertasCSV, bateria, precioBaseHora) : vector<TransaccionEnergia>
+    + insertarOrden(orden) : bool
+    + insertarOfertaBateria(id, kwh, precioBase) : void
+    + ejecutarMatching() : vector<TransaccionEnergia>
+    + transferirExcedentesABateria(bateria, precioBase) : void
+    + reevaluarPendientesPorSaldo() : void
+    + limpiarLibroAlFinalDelTick() : void
+    + ordenesDescartadas() : size_t
+    + libroVacio() : bool
+    + setTickActual(hora) : void
+    + setDebug(d) : void
+  }
+
+  NodoRed <|-- NodoConsumidor
+  NodoRed <|-- NodoProsumidor
+  NodoRed <|-- NodoAlmacenamiento
+  NodoConsumidor --> PerfilConsumo
+  GridManager --> TransaccionEnergia : produce
+  GridManager --> Orden : libro de órdenes
+  GridManager ..> NodoAlmacenamiento : compra excedentes
+}
+
+package "Persistencia (src/GestionDatos.hpp)" {
+
+  class CapaDatos <<alias gestionDatos>> {
+    - db : sqlite3*
+    - debug_ : bool
+    - errUltimo_ : string
+    - tickHoraActual_ : string
+    - ctxProc_ : CtxProc
+    --
+    + crearTablas(cfg) : void
+    + cargarNodosDesdeBD() : vector<DatoNodo>
+    + leerTarifa(hora) : double
+    + persistirTick(trans, saldos, tickHora) : ResultadoTick
+    + invocarActualizarSaldoYLecturas(id, kwh, precio, tipo) : bool
+    + iniciarTransaccion() : bool
+    + confirmarTransaccion() : bool
+    + abortarTransaccion() : bool
+    + insertarTransaccion(t) : bool
+    + {static} leerCSVConInforme(ruta) : InformeCSV
+    + {static} leerCSV(ruta) : vector<Orden>
+    + activarTriggerPrueba(limite) : void
+    + desactivarTriggerPrueba() : void
+  }
+
+  class DatoNodo <<struct>> {
+    - id : int
+    - ubicacion : string
+    - tipo : string
+    - saldo : double
+    - perfil : string
+  }
+
+  class InformeCSV <<struct>> {
+    - filas : vector<Orden>
+    - rechazadas : vector<string>
+  }
+
+  class ResultadoTick <<struct>> {
+    - ok : bool = true
+    - transacciones : size_t
+    - lecturas : size_t
+    - motivo : string
+  }
+
+  note right of CapaDatos
+    Único punto de la aplicación
+    que habla SQL. No aparece
+    ningún #include de sqlite3
+    fuera de esta clase.
+  end note
+
+  note bottom of CapaDatos
+    <b>actualizar_saldo_y_lecturas</b>
+    Procedimiento almacenado que exige
+    el enunciado (sección 4.2).
+    SQLite no tiene procedimientos
+    almacenados, así que se registra
+    como FUNCIÓN SQL de aplicación con
+    la misma firma:
+    actualizar_saldo_y_lecturas(p_id_nodo,
+      p_kwh, p_precio, p_tipo_operacion)
+  end note
+
+  CapaDatos ..> ResultadoTick : devuelve
+  CapaDatos ..> DatoNodo : devuelve
+  CapaDatos ..> InformeCSV : devuelve
+  CapaDatos ..> Orden : lee
+}
+
+package "Configuración (src/util/config.hpp)" {
+  class Config <<struct>> {
+    - dbPath : string
+    - datosDir : string
+    - sqlPath : string
+    - fechaSimulada : string
+  }
+}
+
+package "Simulación (src/main.cpp)" {
+  class SimuladorEcoGrid <<procedimiento main>> {
+    + main(argc, argv) : int
+  }
+}
+
+' ---- Relaciones entre capas ----
+SimuladorEcoGrid --> GridManager : usa
+SimuladorEcoGrid --> CapaDatos : usa
+SimuladorEcoGrid --> Config : lee
+SimuladorEcoGrid --> NodoAlmacenamiento : descarga tras el COMMIT
+CapaDatos ..> TransaccionEnergia : persiste
+CapaDatos ..> Config : recibe
+
+@enduml

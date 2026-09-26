@@ -1,0 +1,103 @@
+@startuml diagrama_entidad_relacion
+' ============================================================
+' EcoGrid - Diagrama Entidad-Relación (DER / MER)
+'
+' Refleja EXACTAMENTE sql/crear_esquema.sql. Si cambiás una tabla,
+' cambiá también este archivo: el render script puede compararlos.
+'
+' Renderizar:  ./docs/render.sh
+' ============================================================
+
+title EcoGrid — Diagrama Entidad-Relación
+
+hide circle
+skin dpi 150
+
+entity NODOS {
+  * id_nodo : INTEGER <<PK>>
+  --
+  ubicacion : TEXT <<NOT NULL>>
+  tipo : TEXT <<NOT NULL, CHECK IN
+            (Consumidor|Prosumidor|Bateria)>>
+  saldo_cuenta : REAL <<CHECK >= 0>>
+  perfil_consumo : TEXT
+}
+
+entity TRANSACCIONES {
+  * id_transaccion : INTEGER <<PK, autoincrement>>
+  --
+  id_vendedor : INTEGER <<FK, NOT NULL>>
+  id_comprador : INTEGER <<FK, NOT NULL>>
+  kwh : REAL <<NOT NULL, CHECK > 0>>
+  precio_unitario : REAL <<NOT NULL, CHECK > 0>>
+  tick_hora : INTEGER <<CHECK 0..23>>
+  fecha_transaccion : TEXT <<DEFAULT CURRENT_TIMESTAMP>>
+}
+
+entity LECTURAS_HISTORICAS {
+  * id_lectura : INTEGER <<PK, autoincrement>>
+  --
+  id_nodo : INTEGER <<FK, NOT NULL>>
+  tick_hora : TEXT <<NOT NULL>> <<timestamp simulado>>
+  produccion_kwh : REAL
+  consumo_kwh : REAL
+  excedente_neto : REAL
+}
+
+entity CONFIG_TARIFAS {
+  * hora : INTEGER <<PK, CHECK 0..23>>
+  --
+  precio_base_kwh : REAL <<NOT NULL>>
+}
+
+' ---- Relaciones ----
+' NODOS 1 —— N TRANSACCIONES, por cada uno de los dos papeles
+NODOS ||--o{ TRANSACCIONES : "vende (id_vendedor)"
+NODOS ||--o{ TRANSACCIONES : "compra (id_comprador)"
+NODOS ||--o{ LECTURAS_HISTORICAS : "registra (id_nodo)"
+
+' ---- Restricciones que el diagrama no puede dibujar ----
+note right of NODOS
+  <b>Saldo no negativo</b>
+  CHECK (saldo_cuenta >= 0).
+  La última línea de defensa: si el
+  motor de matching calcula mal, el
+  COMMIT del tick se revierte entero.
+end note
+
+note bottom of TRANSACCIONES
+  <b>trg_validar_saldo</b> (BEFORE INSERT)
+  Rechaza la fila si el saldo actual
+  del comprador < kwh * precio_unitario.
+  Valida contra el saldo VIVO, que la
+  capa de datos va descontando
+  transacción por transacción: por eso
+  el trigger ve el saldo ya ajustado
+  por las compras anteriores del tick.
+end note
+
+note bottom of LECTURAS_HISTORICAS
+  <b>actualizar_saldo_y_lecturas</b>
+  (p_id_nodo, p_kwh, p_precio, p_tipo_operacion)
+  Procedimiento que el enunciado pide
+  para ajustar NODOS.saldo_cuenta y
+  escribir esta tabla. SQLite no tiene
+  procedimientos almacenados: se
+  registra como FUNCIÓN SQL de
+  aplicación con esa firma exacta.
+
+  <b>excedente_neto</b> = produccion - consumo
+  pero para la batería (nodo 99) va
+  invertido: consumo - produccion,
+  porque lo que interesa es la carga
+  neta almacenada, no la producción.
+end note
+
+note left of CONFIG_TARIFAS
+  Las horas 10, 12, 14, 15 y 18 están
+  fijadas a los valores de los casos de
+  aceptación del PDF. Cambiarlas cambia
+  el resultado de esos casos.
+end note
+
+@enduml
