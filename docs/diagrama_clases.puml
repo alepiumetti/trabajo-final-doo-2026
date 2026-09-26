@@ -55,7 +55,6 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     + capacidadDisponible() : double
     + absorberEnergia(kwh) : double
     + liberarEnergia(kwh) : double
-    + restablecerCarga(kwh) : void
     + estado() : string
   }
 
@@ -80,23 +79,18 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     - askMap : map<double, queue<Orden>>
     - contadorSecuencia : uint64_t
     - transaccionesDelTick : vector<TransaccionEnergia>
-    - pendientesPorSaldo : vector<Orden>
-    - ordenesDescartadas_ : size_t
     - tickActual : int
     - UMBRAL : const double = 0.001
     - consultarSaldo : function<double(int)>
     - actualizarSaldo : function<bool(int,double)>
-    - nodoConocido : function<bool(int)>
     - logger : function<void(string)>
     --
     + procesarTick(ofertasCSV, bateria, precioBaseHora) : vector<TransaccionEnergia>
-    + insertarOrden(orden) : bool
+    + insertarOrden(orden) : void
     + insertarOfertaBateria(id, kwh, precioBase) : void
     + ejecutarMatching() : vector<TransaccionEnergia>
     + transferirExcedentesABateria(bateria, precioBase) : void
-    + reevaluarPendientesPorSaldo() : void
     + limpiarLibroAlFinalDelTick() : void
-    + ordenesDescartadas() : size_t
     + libroVacio() : bool
     + setTickActual(hora) : void
     + setDebug(d) : void
@@ -123,16 +117,13 @@ package "Persistencia (src/GestionDatos.hpp)" {
     + crearTablas(cfg) : void
     + cargarNodosDesdeBD() : vector<DatoNodo>
     + leerTarifa(hora) : double
-    + persistirTick(trans, saldos, tickHora) : ResultadoTick
+    + persistirTick(trans, tickHora) : ResultadoTick
     + invocarActualizarSaldoYLecturas(id, kwh, precio, tipo) : bool
     + iniciarTransaccion() : bool
     + confirmarTransaccion() : bool
     + abortarTransaccion() : bool
     + insertarTransaccion(t) : bool
-    + {static} leerCSVConInforme(ruta) : InformeCSV
     + {static} leerCSV(ruta) : vector<Orden>
-    + activarTriggerPrueba(limite) : void
-    + desactivarTriggerPrueba() : void
   }
 
   class DatoNodo <<struct>> {
@@ -141,11 +132,6 @@ package "Persistencia (src/GestionDatos.hpp)" {
     - tipo : string
     - saldo : double
     - perfil : string
-  }
-
-  class InformeCSV <<struct>> {
-    - filas : vector<Orden>
-    - rechazadas : vector<string>
   }
 
   class ResultadoTick <<struct>> {
@@ -176,7 +162,6 @@ package "Persistencia (src/GestionDatos.hpp)" {
 
   CapaDatos ..> ResultadoTick : devuelve
   CapaDatos ..> DatoNodo : devuelve
-  CapaDatos ..> InformeCSV : devuelve
   CapaDatos ..> Orden : lee
 }
 

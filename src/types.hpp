@@ -5,7 +5,6 @@
 // sql/crear_esquema.sql y con los casos de aceptación del PDF.
 #define BATERIA 99
 
-#include <algorithm>
 #include <chrono>
 #include <functional>
 #include <queue>
@@ -146,25 +145,17 @@ public:
 
     double absorberEnergia(double kwh) {
         double espacio = capacidadMax - cargaActual;
-        double absorbido = std::min(kwh, espacio);
+        double absorbido = kwh < espacio ? kwh : espacio;
         cargaActual += absorbido;
         balanceEnergia = cargaActual;
         return absorbido;
     }
 
     double liberarEnergia(double kwh) {
-        double liberado = std::min(kwh, cargaActual);
+        double liberado = kwh < cargaActual ? kwh : cargaActual;
         cargaActual -= liberado;
         balanceEnergia = cargaActual;
         return liberado;
-    }
-
-    // Devuelve la carga a un valor previo: se usa para revertir un tick
-    // que la base de datos rechazó (la energía absorbida durante el
-    // matching no se puede deshacer transacción por transacción).
-    void restablecerCarga(double kwh) {
-        cargaActual = std::clamp(kwh, 0.0, capacidadMax);
-        balanceEnergia = cargaActual;
     }
 
 };
@@ -191,7 +182,7 @@ struct TransaccionEnergia {
     double getMontoTotal() const { return kwh * precio; }
 };
 
-//  ========================== NODO CONSUMIDOR  ==========================
+//  ========================== GRID MANAGER  ==========================
 
 class GridManager {
 public:
@@ -226,18 +217,6 @@ private:
     std::function<double(int)> consultarSaldo;
     std::function<bool(int, double)> actualizarSaldo;
 
-    // Indica si un id de nodo existe en la BD. Opcional: si no se
-    // define, la validación de nodos inexistentes queda desactivada.
-    std::function<bool(int)> nodoConocido;
-
-    // Órdenes de compra sin saldo suficiente (se reintentan dentro del tick)
-    std::vector<Orden> pendientesPorSaldo;
-
-    // Cuántas órdenes descartó insertarOrden en el tick actual por datos
-    // inválidos (precio no positivo, energía no positiva o nodo
-    // inexistente). procesarTick lo pone en cero en cada tick.
-    size_t ordenesDescartadas_ = 0;
-
     // En modo debug y con stdin como terminal, espera Enter para continuar.
     void pausa() {
         if (debug_ && isatty(STDIN_FILENO)) {
@@ -271,55 +250,12 @@ public:
           consultarSaldo(std::move(consultarSaldoFn)),
           actualizarSaldo(std::move(actualizarSaldoFn)) {}
 
-  GridManager(std::function<double(int)> consultarSaldoFn,
-                std::function<bool(int, double)> actualizarSaldoFn,
-                std::function<void(const std::string&)> logFn,
-                std::function<bool(int)> nodoConocidoFn)
-        : logger(std::move(logFn)),
-          consultarSaldo(std::move(consultarSaldoFn)),
-          actualizarSaldo(std::move(actualizarSaldoFn)),
-          nodoConocido(std::move(nodoConocidoFn)) {}
-
     void setDebug(bool d) { debug_ = d; }
 
     // ----------------------------------------------------------
     // Inserción de órdenes en el libro
     // ----------------------------------------------------------
-    // Valida la orden ANTES de meterla en el libro. Sin esto, una fila
-    // con kwh = 0 llegaría al matching, generaría una transacción de
-    // 0 kWh y el CHECK (kwh > 0) de la BD abortaría el tick ENTERO,
-    // perdiendo también las transacciones legítimas del tick.
-    // Devuelve false si la orden se descartó.
-    bool insertarOrden(const Orden& ordenOriginal) {
-        // El PDF (sección 3.3): los precios no pueden ser negativos.
-        if (ordenOriginal.precio <= 0.0) {
-            log("[Orden descartada] Nodo " +
-                std::to_string(ordenOriginal.idNodo) + ": precio " +
-                std::to_string(ordenOriginal.precio) +
-                " invalido (debe ser > 0).");
-            ++ordenesDescartadas_;
-            return false;
-        }
-        if (ordenOriginal.kwh <= UMBRAL) {
-            log("[Orden descartada] Nodo " +
-                std::to_string(ordenOriginal.idNodo) + ": energia " +
-                std::to_string(ordenOriginal.kwh) +
-                " kWh invalida (debe ser > 0).");
-            ++ordenesDescartadas_;
-            return false;
-        }
-        // El PDF (sección 6.1): los nodos deben existir en la BD. Sin
-        // esta comprobación, un id inexistente entra al libro y el
-        // matching lo descarta como "compra sin saldo", que es un
-        // diagnóstico falso.
-        if (nodoConocido && !nodoConocido(ordenOriginal.idNodo)) {
-            log("[Orden descartada] El nodo " +
-                std::to_string(ordenOriginal.idNodo) +
-                " no existe en la base de datos.");
-            ++ordenesDescartadas_;
-            return false;
-        }
-
+    void insertarOrden(const Orden& ordenOriginal) {
         Orden orden = ordenOriginal;
         orden.secuencia = ++contadorSecuencia;
 
@@ -328,7 +264,6 @@ public:
         } else {
             askMap[orden.precio].push(orden);
         }
-        return true;
     }
 
     // Inserta la oferta de la batería al inicio del libro de ventas
@@ -381,7 +316,9 @@ public:
                     continue;
                 }
 
-                double absorbible = std::min(orden.kwh, bateria.capacidadDisponible());
+                double absorbible = orden.kwh < bateria.capacidadDisponible()
+                                        ? orden.kwh
+                                        : bateria.capacidadDisponible();
                 if (absorbible <= UMBRAL) {
                     log("[Bateria] Capacidad llena, no puede absorber más.");
                     return;
@@ -390,7 +327,7 @@ public:
                 double monto = absorbible * precioBaseHora;
                 if (consultarSaldo && actualizarSaldo &&
                     consultarSaldo(bateria.getId()) < monto) {
-                    log("[Bateria] Saldo insuficiente en memoria para absorber " +
+                    log("[Bateria] Saldo insuficiente para absorber " +
                         std::to_string(absorbible) + " kWh.");
                     return;
                 }
@@ -422,10 +359,6 @@ public:
     // ----------------------------------------------------------
     // Elimina remanentes al final del tick
     // ----------------------------------------------------------
-    // Órdenes descartadas por validación en el ÚLTIMO tick. La usa
-    // main.cpp para acumular el total del día.
-    size_t ordenesDescartadas() const { return ordenesDescartadas_; }
-
     void limpiarLibroAlFinalDelTick() {
     // Demanda insatisfecha: log
     registrarDemandaInsatisfecha();
@@ -458,14 +391,6 @@ public:
             }
         }
         bidMap.clear();
-
-        for (const Orden& orden : pendientesPorSaldo) {
-            log("[Demanda insatisfecha por saldo] Nodo " +
-                std::to_string(orden.idNodo) +
-                " no pudo comprar " + std::to_string(orden.kwh) +
-                " kWh a " + std::to_string(orden.precio));
-        }
-        pendientesPorSaldo.clear();
     }
 
     // ----------------------------------------------------------
@@ -480,33 +405,20 @@ public:
     // procesarTick: método principal del motor de subasta.
     //
     // El PDF (sección 4.1) pide que GridManager tenga
-    // `procesarTick(const std::vector& ofertasCSV)`. Este overload
-    // concentra la orquestración del tick —que antes vivía entera en
-    // main.cpp— para que el motor sea usable y testeable por separado.
+    // `procesarTick(const std::vector& ofertasCSV)`.
     //
     // Orden de las operaciones (secciones 3.2 y 3.3 del PDF):
     //   1. La batería ofrece su carga al precio base, ANTES del CSV.
-    //      La sección 3.3 dice textualmente que su oferta "se inserta
-    //      al inicio del libro de ventas antes de procesar las del
-    //      CSV", y el caso 4 depende de ese orden: es lo que da
-    //      prioridad precio-tiempo a la energía almacenada.
     //   2. Se cargan las órdenes del CSV.
     //   3. Matching.
     //   4. Los excedentes sin comprador van a la batería.
-    //   5. Se reintentan las compras que quedaron sin saldo.
     //
     // Devuelve las transacciones del tick. El llamador las persiste en
     // un único bloque transaccional (CapaDatos::persistirTick) y recién
-    // después descarga la batería: si la BD rechaza el tick, la energía
-    // nunca se considers vendida.
+    // después descarga la batería.
     std::vector<TransaccionEnergia>
     procesarTick(const std::vector<Orden> &ofertasCSV,
                  NodoAlmacenamiento *bateria, double precioBaseHora) {
-        // El contador es POR TICK: el llamador lo acumula para el resumen
-        // del día. Si fuera acumulado, cada tick sumaria también los
-        // descartes de los ticks anteriores.
-        ordenesDescartadas_ = 0;
-
         if (bateria) {
             insertarOfertaBateria(bateria->getId(), bateria->getCargaActual(),
                                   precioBaseHora);
@@ -522,8 +434,6 @@ public:
             transferirExcedentesABateria(*bateria, precioBaseHora);
         }
 
-        reevaluarPendientesPorSaldo();
-
         return transaccionesDelTick;
     }
 
@@ -533,20 +443,6 @@ public:
 
     const std::vector<TransaccionEnergia>& getTransacciones() const {
         return transaccionesDelTick;
-    }
-
-    // Reintenta las órdenes de compra que quedaron sin saldo (dentro del tick)
-    void reevaluarPendientesPorSaldo() {
-        if (pendientesPorSaldo.empty()) return;
-
-        for (const Orden& orden : pendientesPorSaldo) {
-            Orden reinsertada = orden;
-            reinsertada.secuencia = ++contadorSecuencia;
-            bidMap[reinsertada.precio].push(reinsertada);
-        }
-        pendientesPorSaldo.clear();
-
-        realizarMatching();
     }
 
 private:
@@ -577,21 +473,18 @@ private:
                 break;
             }
 
-            double energia = std::min(ordenCompra.kwh, ordenVenta.kwh);
+            double energia = ordenCompra.kwh < ordenVenta.kwh
+                                 ? ordenCompra.kwh
+                                 : ordenVenta.kwh;
             double precio  = (ordenCompra.precio + ordenVenta.precio) / 2.0;
             double monto   = energia * precio;
 
             debugLog("[Matching] Cruce: energia=" + std::to_string(energia) +
                      " kWh, precio_clearing=" + std::to_string(precio));
 
-            // Si el comprador no tiene saldo, la orden queda pendiente
-            // para reintentarla dentro del tick (tras las transferencias).
-            //
-            // Ojo: esto es el motor EN MEMORIA, no el trigger de SQLite
-            // (trg_validar_saldo). El trigger real no llega a dispararse con
-            // estos datos: ambos miran el mismo saldo y aplican el mismo
-            // predicado, así que si acá no hay saldo la compra ni se
-            // intenta. El log lo dice explícito para no confundirlos.
+            // Validación de saldo por software (el PDF permite validarlo
+            // así en vez del trigger): si el comprador no alcanza, la orden
+            // se descarta y se registra como demanda insatisfecha.
             if (consultarSaldo && actualizarSaldo &&
                 consultarSaldo(ordenCompra.idNodo) < monto) {
                 debugLog("[Matching] Comprador nodo " +
@@ -599,16 +492,14 @@ private:
                          " sin saldo (" + std::to_string(monto) +
                          " > " +
                          std::to_string(consultarSaldo(ordenCompra.idNodo)) +
-                         "): orden a reintento");
+                         "): orden descartada");
                 mejorBid->second.pop();
                 if (mejorBid->second.empty()) bidMap.erase(mejorBid);
-                pendientesPorSaldo.push_back(ordenCompra);
-                log("[Saldo insuficiente en memoria] Nodo " +
+                log("[Saldo insuficiente] Nodo " +
                     std::to_string(ordenCompra.idNodo) +
                     " no puede pagar " + std::to_string(monto) +
                     " (kWh=" + std::to_string(energia) +
-                    " a $" + std::to_string(precio) +
-                    ")");
+                    " a $" + std::to_string(precio) + ")");
                 continue;
             }
 
@@ -652,8 +543,7 @@ private:
     void registrarTransaccion(int idVendedor, int idComprador,
                               double kwh, double precio) {
         // Un nodo no puede comprarse a sí mismo: el crédito y el débito caen
-        // sobre el mismo saldo y el asiento queda mal (en memoria se anulan,
-        // en el ledger queda el movimiento completo).
+        // sobre el mismo saldo y el asiento quedaría mal.
         if (idVendedor == idComprador) {
             log("[Transaccion] Descartada: el nodo " +
                 std::to_string(idVendedor) +

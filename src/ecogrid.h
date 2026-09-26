@@ -17,8 +17,8 @@
 //   util/config.hpp   lectura de src/util/config.ini.
 //
 // El motor no depende de la base de datos: se le inyectan callbacks
-// (consultarSaldo / actualizarSaldo / nodoConocido), así que se puede
-// probar sin levantar ninguna base. Eso es lo que hace tests/test_motor.cpp.
+// (consultarSaldo / actualizarSaldo), así que se puede usar sin levantar
+// ninguna base.
 
 #include "GestionDatos.hpp"
 #include "types.hpp"

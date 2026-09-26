@@ -15,27 +15,11 @@ struct Config {
   std::string fechaSimulada = "2026-06-01";
 };
 
-// Una fecha tiene que verse AAAA-MM-DD. Si no, se avisa una vez y se usa
-// la de respaldo: un valor mal escrito en config.ini no debe tumbar la
-// simulación entera (el timestamp es la columna que el PDF pide como DATE).
-inline bool fechaValida(const std::string &f) {
-  if (f.size() != 10 || f[4] != '-' || f[7] != '-')
-    return false;
-  for (size_t i = 0; i < f.size(); ++i) {
-    if (i == 4 || i == 7)
-      continue;
-    if (f[i] < '0' || f[i] > '9')
-      return false;
-  }
-  return true;
-}
-
 // Timestamp simulado de un tick: "<fecha_simulada> <HH>:00:00".
 inline std::string timestampTick(const Config &cfg, int hora) {
-  const std::string &f = fechaValida(cfg.fechaSimulada) ? cfg.fechaSimulada
-                                                         : std::string("2026-06-01");
   char buffer[32];
-  std::snprintf(buffer, sizeof(buffer), "%s %02d:00:00", f.c_str(), hora);
+  std::snprintf(buffer, sizeof(buffer), "%s %02d:00:00",
+                cfg.fechaSimulada.c_str(), hora);
   return std::string(buffer);
 }
 
