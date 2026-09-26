@@ -4,12 +4,12 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unistd.h>
 #include <utility>
 #include <vector>
-#include <unistd.h>
 
-#include "types.hpp"
 #include "GestionDatos.hpp"
+#include "types.hpp"
 #include "util/config.hpp"
 
 static NodoRed *construirNodo(const DatoNodo &d) {
@@ -20,15 +20,18 @@ static NodoRed *construirNodo(const DatoNodo &d) {
     return new NodoAlmacenamiento(d.id, d.ubicacion, 0.0, 1000.0, d.saldo);
   }
   PerfilConsumo perfil = Residencial;
-  if (d.perfil == "Comercial") perfil = Comercial;
-  else if (d.perfil == "Industrial") perfil = Industrial;
+  if (d.perfil == "Comercial")
+    perfil = Comercial;
+  else if (d.perfil == "Industrial")
+    perfil = Industrial;
   return new NodoConsumidor(d.id, d.ubicacion, perfil, 0.0, d.saldo);
 }
 
 int main(int argc, char *argv[]) {
   bool debug = false;
   for (int i = 1; i < argc; ++i) {
-    if (std::string(argv[i]) == "--debug") debug = true;
+    if (std::string(argv[i]) == "--debug")
+      debug = true;
   }
 
   Config cfg = cargarConfig();
@@ -51,7 +54,8 @@ int main(int argc, char *argv[]) {
   };
   auto actualizarSaldo = [&nodos](int id, double nuevoSaldo) -> bool {
     auto it = nodos.find(id);
-    if (it == nodos.end()) return false;
+    if (it == nodos.end())
+      return false;
     it->second->setSaldoCuenta(nuevoSaldo);
     return true;
   };
@@ -62,7 +66,8 @@ int main(int argc, char *argv[]) {
 
   // En modo debug imprime cada paso del flujo y espera Enter.
   auto debugPrint = [&debug](const std::string &msg) {
-    if (!debug) return;
+    if (!debug)
+      return;
     std::cout << msg << std::endl;
     if (isatty(STDIN_FILENO)) {
       std::cout << "  (Enter para continuar)\n";
@@ -83,6 +88,7 @@ int main(int argc, char *argv[]) {
   size_t totalLecturas = 0;
 
   for (int hora = 0; hora < 24; ++hora) {
+    std::cout << " ========== Tick " << hora << " ========== \n" << std::endl;
     grid.setTickActual(hora);
 
     std::string sufijo = (hora < 10) ? "0" : "";
@@ -95,20 +101,21 @@ int main(int argc, char *argv[]) {
     int compras = 0, ventas = 0;
     for (const auto &o : ordenes) {
       grid.insertarOrden(o);
-      if (o.esCompra) ++compras;
-      else ++ventas;
+      if (o.esCompra)
+        ++compras;
+      else
+        ++ventas;
     }
     debugPrint("[Tick " + horaStr + "] Órdenes cargadas: " +
-               std::to_string(ordenes.size()) + " (" +
-               std::to_string(compras) + " compra / " +
-               std::to_string(ventas) + " venta)");
+               std::to_string(ordenes.size()) + " (" + std::to_string(compras) +
+               " compra / " + std::to_string(ventas) + " venta)");
 
     if (bateria) {
       double tarifa = gestor.leerTarifa(hora);
-      debugPrint("[Tick " + horaStr + "] Tarifa hora = " +
-                 std::to_string(tarifa) + " | Batería nodo " +
-                 std::to_string(bateria->getId()) + " carga = " +
-                 std::to_string(bateria->getCargaActual()) + " kWh");
+      debugPrint(
+          "[Tick " + horaStr + "] Tarifa hora = " + std::to_string(tarifa) +
+          " | Batería nodo " + std::to_string(bateria->getId()) +
+          " carga = " + std::to_string(bateria->getCargaActual()) + " kWh");
       grid.insertarOfertaBateria(bateria->getId(), bateria->getCargaActual(),
                                  tarifa);
       grid.ejecutarMatching();
@@ -120,17 +127,19 @@ int main(int argc, char *argv[]) {
 
     const auto &txns = grid.getTransacciones();
     double kwhTick = 0.0;
-    for (const auto &t : txns) kwhTick += t.kwh;
-    debugPrint("[Tick " + horaStr + "] Matching: " +
-               std::to_string(txns.size()) + " transacciones (" +
-               std::to_string(kwhTick) + " kWh)");
+    for (const auto &t : txns)
+      kwhTick += t.kwh;
+    debugPrint("[Tick " + horaStr +
+               "] Matching: " + std::to_string(txns.size()) +
+               " transacciones (" + std::to_string(kwhTick) + " kWh)");
 
     // Descargar la batería por la energía vendida en el tick
     // (matching + reintentos por saldo).
     if (bateria) {
       double vendido = 0.0;
       for (const auto &t : txns) {
-        if (t.idVendedor == bateria->getId()) vendido += t.kwh;
+        if (t.idVendedor == bateria->getId())
+          vendido += t.kwh;
       }
       bateria->liberarEnergia(vendido);
       debugPrint("[Tick " + horaStr + "] Batería descargada: " +

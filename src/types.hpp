@@ -1,5 +1,8 @@
 #ifndef types_h
 #define types_h
+
+#define BATERIA 5 // id del nodo Bateria (seed en sql/crear_esquema.sql)
+
 #include <algorithm>
 #include <chrono>
 #include <functional>
@@ -526,8 +529,12 @@ private:
             actualizarSaldo(idComprador, saldoComprador - monto);
         }
 
-        log("[Transaccion] Vendedor=" + std::to_string(idVendedor) +
-            " Comprador=" + std::to_string(idComprador) +
+        log("[Transaccion] Vendedor=" +
+            (idVendedor == BATERIA ? std::string("Bateria")
+                                   : std::to_string(idVendedor)) +
+            " Comprador=" +
+            (idComprador == BATERIA ? std::string("Bateria")
+                                    : std::to_string(idComprador)) +
             " kWh=" + std::to_string(kwh) +
             " Precio=" + std::to_string(precio));
     }

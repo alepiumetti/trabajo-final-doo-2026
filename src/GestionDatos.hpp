@@ -7,8 +7,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 #include <unistd.h>
+#include <vector>
 
 #include "types.hpp"
 #include "util/config.hpp"
@@ -35,7 +35,8 @@ private:
   }
 
   void debugLog(const std::string &msg) {
-    if (!debug_) return;
+    if (!debug_)
+      return;
     std::cout << msg << std::endl;
     pausa();
   }
@@ -53,14 +54,15 @@ private:
 public:
   explicit gestionDatos(const Config &cfg) {
     if (sqlite3_open(cfg.dbPath.c_str(), &db) != SQLITE_OK) {
-      std::cerr << "No se pudo abrir la base de datos: "
-                << sqlite3_errmsg(db) << "\n";
+      std::cerr << "No se pudo abrir la base de datos: " << sqlite3_errmsg(db)
+                << "\n";
       throw std::runtime_error("Error al abrir la base de datos");
     }
   }
 
   ~gestionDatos() {
-    if (db) sqlite3_close(db);
+    if (db)
+      sqlite3_close(db);
   }
 
   void setDebug(bool d) { debug_ = d; }
@@ -69,7 +71,8 @@ public:
   void crearTablas(const Config &cfg) {
     std::ifstream archivo(cfg.sqlPath);
     if (!archivo.is_open()) {
-      throw std::runtime_error("No se pudo abrir el script SQL: " + cfg.sqlPath);
+      throw std::runtime_error("No se pudo abrir el script SQL: " +
+                               cfg.sqlPath);
     }
 
     std::stringstream buffer;
@@ -93,21 +96,27 @@ public:
   // atómico. Si alguna inserción falla (trigger, FK, constraint) se
   // ejecuta ROLLBACK y no queda NADA persistido de ese tick.
   bool persistirTransacciones(const std::vector<TransaccionEnergia> &trans) {
-    if (trans.empty()) return true;
+    if (trans.empty())
+      return true;
 
-    if (!iniciarTransaccion()) return false;
+    if (!iniciarTransaccion())
+      return false;
 
     debugLog("[BD] BEGIN (bloque atómico del tick)");
     for (const auto &t : trans) {
-      debugLog("[BD] INSERT transaccion: vendedor=" + std::to_string(t.idVendedor) +
-               " comprador=" + std::to_string(t.idComprador) +
-               " kWh=" + std::to_string(t.kwh) +
-               " precio=" + std::to_string(t.precio));
+    debugLog("[BD] INSERT transaccion: vendedor=" +
+             (t.idVendedor == BATERIA ? std::string("Bateria")
+                                      : std::to_string(t.idVendedor)) +
+             " comprador=" +
+             (t.idComprador == BATERIA ? std::string("Bateria")
+                                       : std::to_string(t.idComprador)) +
+             " kWh=" + std::to_string(t.kwh) +
+             " precio=" + std::to_string(t.precio));
       if (!insertarTransaccion(t)) {
         std::string motivo = sqlite3_errmsg(db);
         abortarTransaccion();
-        std::cerr << "[Rollback] Transacciones del tick rechazadas: "
-                  << motivo << "\n";
+        std::cerr << "[Rollback] Transacciones del tick rechazadas: " << motivo
+                  << "\n";
         return false;
       }
     }
@@ -115,8 +124,7 @@ public:
     debugLog("[BD] COMMIT");
     if (!confirmarTransaccion()) {
       abortarTransaccion();
-      std::cerr << "[Rollback] Error en COMMIT: " << sqlite3_errmsg(db)
-                << "\n";
+      std::cerr << "[Rollback] Error en COMMIT: " << sqlite3_errmsg(db) << "\n";
       return false;
     }
     return true;
@@ -171,8 +179,8 @@ public:
     sqlite3_finalize(stmt);
 
     if (rc != SQLITE_DONE) {
-      std::cerr << "No se pudo insertar la transacción: "
-                << sqlite3_errmsg(db) << "\n";
+      std::cerr << "No se pudo insertar la transacción: " << sqlite3_errmsg(db)
+                << "\n";
       return false;
     }
     return true;
@@ -201,8 +209,8 @@ public:
       return;
     }
 
-    std::string horaStr = (hora < 10) ? "0" + std::to_string(hora)
-                                      : std::to_string(hora);
+    std::string horaStr =
+        (hora < 10) ? "0" + std::to_string(hora) : std::to_string(hora);
     double excedente = produccion - consumo;
 
     sqlite3_bind_int(stmt, 1, idNodo);
