@@ -1,11 +1,11 @@
 CXX      = g++
-CXXFLAGS = -Wall -Wextra -std=c++17
+CXXFLAGS = -Wall -Wextra -std=c++17 -Isrc
 LDFLAGS  = -lsqlite3
 
 TARGET = ecogrid
-SRCS   = main.cpp
+SRCS   = src/main.cpp
 OBJS   = $(SRCS:.cpp=.o)
-HDRS   = GestionDatos.hpp types.hpp
+HDRS   = src/GestionDatos.hpp src/types.hpp src/util/config.hpp
 
 ifeq ($(OS),Windows_NT)
 EXEEXT = .exe

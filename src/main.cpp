@@ -1,15 +1,15 @@
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <sqlite3.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "types.hpp"
-
 #include "GestionDatos.hpp"
+#include "util/config.hpp"
 
 static NodoRed *construirNodo(const DatoNodo &d) {
   if (d.tipo == "Prosumidor") {
@@ -25,9 +25,11 @@ static NodoRed *construirNodo(const DatoNodo &d) {
 }
 
 int main() {
-  gestionDatos gestor;
+  Config cfg = cargarConfig();
 
-  gestor.crearTablas();
+  gestionDatos gestor(cfg);
+
+  gestor.crearTablas(cfg);
 
   auto datosNodos = gestor.cargarNodosDesdeBD();
 
@@ -62,8 +64,8 @@ int main() {
     grid.setTickActual(hora);
 
     std::string sufijo = (hora < 10) ? "0" : "";
-    std::string ruta =
-        "./datos/ofertas_" + sufijo + std::to_string(hora) + ".csv";
+    std::string ruta = cfg.datosDir + "/ofertas_" + sufijo +
+                       std::to_string(hora) + ".csv";
     auto ordenes = gestor.leerCSV(ruta);
     for (const auto &o : ordenes) {
       grid.insertarOrden(o);
@@ -90,12 +92,24 @@ int main() {
       bateria->liberarEnergia(vendido);
     }
 
-    for (const auto &t : grid.getTransacciones()) {
-      gestor.insertarTransaccion(t);
-    }
+    // Persistencia transaccional del tick (bloque atómico)
+    if (gestor.persistirTransacciones(grid.getTransacciones())) {
+      for (const auto &[id, nodo] : nodos) {
+        gestor.actualizarSaldo(id, nodo->getSaldoCuenta());
+      }
 
-    for (const auto &[id, nodo] : nodos) {
-      gestor.actualizarSaldo(id, nodo->getSaldoCuenta());
+      // Lecturas históricas por nodo participante del tick
+      std::map<int, std::pair<double, double>> lecturas;
+      for (const auto &t : grid.getTransacciones()) {
+        lecturas[t.idVendedor].first += t.kwh;   // producción
+        lecturas[t.idComprador].second += t.kwh; // consumo
+      }
+      for (const auto &[idNodo, prodCons] : lecturas) {
+        gestor.insertarLectura(idNodo, hora, prodCons.first, prodCons.second);
+      }
+    } else {
+      logger("[Tick " + sufijo + std::to_string(hora) +
+             "] Transacciones rechazadas: ROLLBACK, saldos sin cambios.");
     }
 
     grid.limpiarLibroAlFinalDelTick();

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "types.hpp"
+#include "util/config.hpp"
 
 struct DatoNodo {
   int id;
@@ -23,10 +24,21 @@ class gestionDatos {
 private:
   sqlite3 *db = nullptr;
 
+  bool ejecutarSQL(const char *sql) {
+    char *errMsg = nullptr;
+    if (sqlite3_exec(db, sql, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+      std::cerr << "Error SQL: " << errMsg << "\n";
+      sqlite3_free(errMsg);
+      return false;
+    }
+    return true;
+  }
+
 public:
-  gestionDatos() {
-    if (sqlite3_open("ejemplo.db", &db) != SQLITE_OK) {
-      std::cerr << "No se pudo abrir la base de datos\n";
+  explicit gestionDatos(const Config &cfg) {
+    if (sqlite3_open(cfg.dbPath.c_str(), &db) != SQLITE_OK) {
+      std::cerr << "No se pudo abrir la base de datos: "
+                << sqlite3_errmsg(db) << "\n";
       throw std::runtime_error("Error al abrir la base de datos");
     }
   }
@@ -35,109 +47,55 @@ public:
     if (db) sqlite3_close(db);
   }
 
-  void crearTablas() {
-    const char *sql = R"SQL(
-    PRAGMA foreign_keys = ON;
-
-    CREATE TABLE IF NOT EXISTS NODOS (
-      id_nodo INTEGER PRIMARY KEY,
-      ubicacion TEXT NOT NULL,
-      tipo TEXT NOT NULL CHECK (tipo IN ('Consumidor', 'Prosumidor', 'Bateria')),
-      saldo_cuenta REAL DEFAULT 0 CHECK (saldo_cuenta >= 0),
-      perfil_consumo TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS LECTURAS_HISTORICAS (
-      id_lectura INTEGER PRIMARY KEY AUTOINCREMENT,
-      id_nodo INTEGER NOT NULL,
-      tick_hora TEXT NOT NULL,
-      produccion_kwh REAL DEFAULT 0,
-      consumo_kwh REAL DEFAULT 0,
-      excedente_neto REAL,
-      FOREIGN KEY (id_nodo) REFERENCES NODOS(id_nodo)
-    );
-
-    CREATE TABLE IF NOT EXISTS TRANSACCIONES (
-      id_transaccion INTEGER PRIMARY KEY AUTOINCREMENT,
-      id_vendedor INTEGER NOT NULL,
-      id_comprador INTEGER NOT NULL,
-      kwh REAL NOT NULL CHECK (kwh > 0),
-      precio_unitario REAL NOT NULL CHECK (precio_unitario > 0),
-      fecha_transaccion TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (id_vendedor) REFERENCES NODOS(id_nodo),
-      FOREIGN KEY (id_comprador) REFERENCES NODOS(id_nodo)
-    );
-
-    CREATE TABLE IF NOT EXISTS CONFIG_TARIFAS (
-      hora INTEGER PRIMARY KEY CHECK (hora BETWEEN 0 AND 23),
-      precio_base_kwh REAL NOT NULL
-    );
-
-    -- Precio base horario (24 horas) al que la bateria compra los
-    -- excedentes sin comprador. OR REPLACE para que sea idempotente
-    -- al reejecutar sobre un ejemplo.db ya existente.
-    INSERT OR REPLACE INTO CONFIG_TARIFAS (hora, precio_base_kwh) VALUES
-      (0, 0.85), (1, 0.80), (2, 0.78), (3, 0.78),
-      (4, 0.82), (5, 0.90), (6, 1.05), (7, 1.20),
-      (8, 1.35), (9, 1.45), (10, 1.50), (11, 1.55),
-      (12, 1.60), (13, 1.58), (14, 1.55), (15, 1.52),
-      (16, 1.55), (17, 1.70), (18, 1.95), (19, 2.20),
-      (20, 2.35), (21, 2.05), (22, 1.55), (23, 1.10);
-
-    -- Nodos iniciales (semilla). INSERT OR IGNORE: no pisa saldos
-    -- ya persistidos entre ejecuciones.
-    INSERT OR IGNORE INTO NODOS (id_nodo, ubicacion, tipo, saldo_cuenta, perfil_consumo) VALUES
-      (1,  'Residencial A', 'Consumidor', 100, 'Residencial'),
-      (2,  'Casa Solar',    'Prosumidor', 50,  NULL),
-      (3,  'Industrial A',  'Consumidor', 100, 'Industrial'),
-      (4,  'Prosumidor D',  'Prosumidor', 150, NULL),
-      (5,  'Bateria E',     'Bateria',    1000000, NULL),
-      (10, 'Industrial B',  'Consumidor', 500, 'Industrial'),
-      (11, 'Comercial A',   'Consumidor', 200, 'Comercial'),
-      (20, 'Solar 1',       'Prosumidor', 100, NULL),
-      (21, 'Solar 2',       'Prosumidor', 80,  NULL),
-      (22, 'Solar 3',       'Prosumidor', 50,  NULL),
-      (30, 'Residencial B', 'Consumidor', 15,  'Residencial'),
-      (40, 'Solar 4',       'Prosumidor', 60,  NULL),
-      (50, 'Solar 5',       'Prosumidor', 100, NULL),
-      (51, 'Residencial C', 'Consumidor', 200, 'Residencial');
-
-    CREATE TRIGGER IF NOT EXISTS trg_validar_saldo
-    BEFORE INSERT ON TRANSACCIONES
-    FOR EACH ROW
-    BEGIN
-      SELECT CASE
-        WHEN (
-          SELECT saldo_cuenta
-          FROM NODOS
-          WHERE id_nodo = NEW.id_comprador
-        ) < (NEW.kwh * NEW.precio_unitario)
-        THEN RAISE(ABORT, 'Saldo insuficiente para realizar la compra')
-      END;
-    END;
-    )SQL";
-
-    char *errMsg = nullptr;
-    if (sqlite3_exec(db, sql, nullptr, nullptr, &errMsg) != SQLITE_OK) {
-      std::cerr << "Error SQL: " << errMsg << "\n";
-      sqlite3_free(errMsg);
-      throw std::runtime_error("Error al ejecutar la consulta SQL");
+  // Ejecuta el script de creación de esquema desde sql/crear_esquema.sql
+  void crearTablas(const Config &cfg) {
+    std::ifstream archivo(cfg.sqlPath);
+    if (!archivo.is_open()) {
+      throw std::runtime_error("No se pudo abrir el script SQL: " + cfg.sqlPath);
     }
 
-    // Tarifa base por defecto para todas las horas si no están definidas
-    sqlite3_stmt *stmt = nullptr;
-    const char *sqlTarifa = "INSERT OR IGNORE INTO CONFIG_TARIFAS "
-                            "(hora, precio_base_kwh) VALUES (?, 1.0);";
-    if (sqlite3_prepare_v2(db, sqlTarifa, -1, &stmt, nullptr) == SQLITE_OK) {
-      for (int h = 0; h < 24; ++h) {
-        sqlite3_bind_int(stmt, 1, h);
-        sqlite3_step(stmt);
-        sqlite3_reset(stmt);
+    std::stringstream buffer;
+    buffer << archivo.rdbuf();
+
+    if (!ejecutarSQL(buffer.str().c_str())) {
+      throw std::runtime_error("Error al ejecutar el esquema SQL");
+    }
+
+    std::cout << "Esquema y trigger creados correctamente.\n";
+  }
+
+  // ----------------------------------------------------------
+  // Transaccionalidad por tick (BEGIN / COMMIT / ROLLBACK)
+  // ----------------------------------------------------------
+  bool iniciarTransaccion() { return ejecutarSQL("BEGIN;"); }
+  bool confirmarTransaccion() { return ejecutarSQL("COMMIT;"); }
+  bool abortarTransaccion() { return ejecutarSQL("ROLLBACK;"); }
+
+  // Persiste TODAS las transacciones de un tick en un único bloque
+  // atómico. Si alguna inserción falla (trigger, FK, constraint) se
+  // ejecuta ROLLBACK y no queda NADA persistido de ese tick.
+  bool persistirTransacciones(const std::vector<TransaccionEnergia> &trans) {
+    if (trans.empty()) return true;
+
+    if (!iniciarTransaccion()) return false;
+
+    for (const auto &t : trans) {
+      if (!insertarTransaccion(t)) {
+        std::string motivo = sqlite3_errmsg(db);
+        abortarTransaccion();
+        std::cerr << "[Rollback] Transacciones del tick rechazadas: "
+                  << motivo << "\n";
+        return false;
       }
     }
-    sqlite3_finalize(stmt);
 
-    std::cout << "Tablas y trigger creados correctamente.\n";
+    if (!confirmarTransaccion()) {
+      abortarTransaccion();
+      std::cerr << "[Rollback] Error en COMMIT: " << sqlite3_errmsg(db)
+                << "\n";
+      return false;
+    }
+    return true;
   }
 
   std::vector<DatoNodo> cargarNodosDesdeBD() {
@@ -203,6 +161,35 @@ public:
       sqlite3_bind_double(stmt, 1, nuevoSaldo);
       sqlite3_bind_int(stmt, 2, idNodo);
       sqlite3_step(stmt);
+    }
+    sqlite3_finalize(stmt);
+  }
+
+  void insertarLectura(int idNodo, int hora, double produccion,
+                       double consumo) {
+    const char *sql = "INSERT INTO LECTURAS_HISTORICAS "
+                      "(id_nodo, tick_hora, produccion_kwh, consumo_kwh, "
+                      "excedente_neto) VALUES (?, ?, ?, ?, ?);";
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+      std::cerr << "Error preparando INSERT lectura: " << sqlite3_errmsg(db)
+                << "\n";
+      return;
+    }
+
+    std::string horaStr = (hora < 10) ? "0" + std::to_string(hora)
+                                      : std::to_string(hora);
+    double excedente = produccion - consumo;
+
+    sqlite3_bind_int(stmt, 1, idNodo);
+    sqlite3_bind_text(stmt, 2, horaStr.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_double(stmt, 3, produccion);
+    sqlite3_bind_double(stmt, 4, consumo);
+    sqlite3_bind_double(stmt, 5, excedente);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+      std::cerr << "No se pudo insertar la lectura: " << sqlite3_errmsg(db)
+                << "\n";
     }
     sqlite3_finalize(stmt);
   }

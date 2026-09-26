@@ -47,10 +47,14 @@ Borra los archivos objeto (`.o`) y el ejecutable `ecogrid`.
 
 ## Estructura de archivos
 
-| Archivo | Descripción |
+| Ruta | Descripción |
 |---|---|
-| `main.cpp` | Punto de entrada del programa |
-| `GestionDatos.hpp` | Creación de tablas SQLite3 y lectura de CSV |
-| `types.hpp` | Tipos del dominio (nodos, órdenes, `GridManager`) |
-| `datos/ofertas_01.csv` | Datos de ofertas |
+| `src/main.cpp` | Punto de entrada del programa |
+| `src/GestionDatos.hpp` | Capa de datos: esquema, transaccionalidad por tick, lecturas |
+| `src/types.hpp` | Tipos del dominio (nodos, órdenes, `GridManager`) |
+| `src/util/config.hpp` | Lector de `config.ini` |
+| `src/util/config.ini` | Configuración (ruta BD, datos, script SQL) |
+| `sql/crear_esquema.sql` | Esquema de la BD: tablas, seed, trigger |
+| `docs/` | Diagramas UML/DER e informe técnico (pendientes) |
+| `datos/ofertas_*.csv` | Ofertas de cada tick (24 archivos) |
 | `ejemplo.db` | Base de datos SQLite3 generada al ejecutar |
