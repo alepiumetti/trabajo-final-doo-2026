@@ -95,6 +95,11 @@ int main(int argc, char *argv[]) {
     std::string horaStr = sufijo + std::to_string(hora);
     std::string ruta = cfg.datosDir + "/ofertas_" + horaStr + ".csv";
 
+    if (bateria) {
+      std::cout << "[Tick " << horaStr << "] Batería inicio: nodo "
+                << bateria->getId() << ", " << bateria->estado() << std::endl;
+    }
+
     debugPrint("[Tick " + horaStr + "] Leyendo " + ruta);
 
     auto ordenes = gestor.leerCSV(ruta);
@@ -175,6 +180,11 @@ int main(int argc, char *argv[]) {
     } else {
       logger("[Tick " + horaStr +
              "] Transacciones rechazadas: ROLLBACK, saldos sin cambios.");
+    }
+
+    if (bateria) {
+      std::cout << "[Tick " << horaStr << "] Batería fin: nodo "
+                << bateria->getId() << ", " << bateria->estado() << std::endl;
     }
 
     grid.limpiarLibroAlFinalDelTick();

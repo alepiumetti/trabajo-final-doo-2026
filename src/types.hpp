@@ -131,7 +131,16 @@ public:
 
     double getCargaActual() const { return cargaActual; }
 
+    double getCapacidadMax() const { return capacidadMax; }
+
     double capacidadDisponible() const { return capacidadMax - cargaActual; }
+
+    std::string estado() const {
+        return "carga = " + std::to_string(cargaActual) +
+               " kWh, capacidad = " + std::to_string(capacidadMax) +
+               " kWh, disponible = " + std::to_string(capacidadMax - cargaActual) +
+               " kWh, saldo = " + std::to_string(saldoCuenta) + " créditos";
+    }
 
     double absorberEnergia(double kwh) {
         double espacio = capacidadMax - cargaActual;
