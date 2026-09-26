@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <unistd.h>
 
 #include "types.hpp"
 #include "util/config.hpp"
@@ -23,6 +24,21 @@ struct DatoNodo {
 class gestionDatos {
 private:
   sqlite3 *db = nullptr;
+  bool debug_ = false;
+
+  // En modo debug y con stdin como terminal, espera Enter (paso a paso).
+  void pausa() {
+    if (debug_ && isatty(STDIN_FILENO)) {
+      std::cout << "  (Enter para continuar)\n";
+      std::cin.get();
+    }
+  }
+
+  void debugLog(const std::string &msg) {
+    if (!debug_) return;
+    std::cout << msg << std::endl;
+    pausa();
+  }
 
   bool ejecutarSQL(const char *sql) {
     char *errMsg = nullptr;
@@ -46,6 +62,8 @@ public:
   ~gestionDatos() {
     if (db) sqlite3_close(db);
   }
+
+  void setDebug(bool d) { debug_ = d; }
 
   // Ejecuta el script de creación de esquema desde sql/crear_esquema.sql
   void crearTablas(const Config &cfg) {
@@ -79,7 +97,12 @@ public:
 
     if (!iniciarTransaccion()) return false;
 
+    debugLog("[BD] BEGIN (bloque atómico del tick)");
     for (const auto &t : trans) {
+      debugLog("[BD] INSERT transaccion: vendedor=" + std::to_string(t.idVendedor) +
+               " comprador=" + std::to_string(t.idComprador) +
+               " kWh=" + std::to_string(t.kwh) +
+               " precio=" + std::to_string(t.precio));
       if (!insertarTransaccion(t)) {
         std::string motivo = sqlite3_errmsg(db);
         abortarTransaccion();
@@ -89,6 +112,7 @@ public:
       }
     }
 
+    debugLog("[BD] COMMIT");
     if (!confirmarTransaccion()) {
       abortarTransaccion();
       std::cerr << "[Rollback] Error en COMMIT: " << sqlite3_errmsg(db)

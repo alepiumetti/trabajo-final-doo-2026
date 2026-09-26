@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <unistd.h>
 
 enum PerfilConsumo { Residencial, Comercial, Industrial };
 
@@ -195,6 +196,10 @@ private:
     // Callback para logging (desacopla de std::cout)
     std::function<void(const std::string&)> logger;
 
+    // Flag de depuración: con --debug se imprime el detalle y se pausa
+    // tras cada log (modo paso a paso).
+    bool debug_ = false;
+
     // Callbacks para consultar/actualizar saldo (desacoplan la persistencia)
     std::function<double(int)> consultarSaldo;
     std::function<bool(int, double)> actualizarSaldo;
@@ -202,8 +207,24 @@ private:
     // Órdenes de compra sin saldo suficiente (se reintentan dentro del tick)
     std::vector<Orden> pendientesPorSaldo;
 
+    // En modo debug y con stdin como terminal, espera Enter para continuar.
+    void pausa() {
+        if (debug_ && isatty(STDIN_FILENO)) {
+            std::cout << "  (Enter para continuar)\n";
+            std::cin.get();
+        }
+    }
+
     void log(const std::string& msg) {
         if (logger) logger(msg);
+        pausa();
+    }
+
+    // Solo imprime (y pausa) si --debug está activo.
+    void debugLog(const std::string& msg) {
+        if (!debug_) return;
+        if (logger) logger(msg);
+        pausa();
     }
 
 public:
@@ -218,6 +239,8 @@ public:
         : logger(std::move(logFn)),
           consultarSaldo(std::move(consultarSaldoFn)),
           actualizarSaldo(std::move(actualizarSaldoFn)) {}
+
+    void setDebug(bool d) { debug_ = d; }
 
     // ----------------------------------------------------------
     // Inserción de órdenes en el libro
@@ -405,23 +428,42 @@ private:
             auto mejorBid = bidMap.begin(); // mayor precio de compra
             auto mejorAsk = askMap.begin(); // menor precio de venta
 
-            // Si los precios NO son compatibles, fin del matching
-            if (mejorBid->first < mejorAsk->first) {
-                break;
-            }
-
             // Copias locales de las órdenes al frente de cada cola
             Orden ordenCompra = mejorBid->second.front();
             Orden ordenVenta  = mejorAsk->second.front();
+
+            debugLog("[Matching] mejorBid=" + std::to_string(mejorBid->first) +
+                     " (nodo " + std::to_string(ordenCompra.idNodo) + ", " +
+                     std::to_string(ordenCompra.kwh) + " kWh) | mejorAsk=" +
+                     std::to_string(mejorAsk->first) + " (nodo " +
+                     std::to_string(ordenVenta.idNodo) + ", " +
+                     std::to_string(ordenVenta.kwh) + " kWh)");
+
+            // Si los precios NO son compatibles, fin del matching
+            if (mejorBid->first < mejorAsk->first) {
+                debugLog("[Matching] Sin cruce compatible: " +
+                         std::to_string(mejorBid->first) + " < " +
+                         std::to_string(mejorAsk->first) + " -> fin del matching");
+                break;
+            }
 
             double energia = std::min(ordenCompra.kwh, ordenVenta.kwh);
             double precio  = (ordenCompra.precio + ordenVenta.precio) / 2.0;
             double monto   = energia * precio;
 
+            debugLog("[Matching] Cruce: energia=" + std::to_string(energia) +
+                     " kWh, precio_clearing=" + std::to_string(precio));
+
             // Si el comprador no tiene saldo, la orden queda pendiente
             // para reintentarla dentro del tick (tras las transferencias).
             if (consultarSaldo && actualizarSaldo &&
                 consultarSaldo(ordenCompra.idNodo) < monto) {
+                debugLog("[Matching] Comprador nodo " +
+                         std::to_string(ordenCompra.idNodo) +
+                         " sin saldo (" + std::to_string(monto) +
+                         " > " +
+                         std::to_string(consultarSaldo(ordenCompra.idNodo)) +
+                         "): orden a reintento");
                 mejorBid->second.pop();
                 if (mejorBid->second.empty()) bidMap.erase(mejorBid);
                 pendientesPorSaldo.push_back(ordenCompra);
@@ -444,6 +486,22 @@ private:
             // Reencolar o eliminar según remanente
             actualizarCola(mejorBid, ordenCompra);
             actualizarCola(mejorAsk, ordenVenta);
+
+            if (ordenCompra.kwh > UMBRAL)
+                debugLog("[Matching] Compra nodo " +
+                         std::to_string(ordenCompra.idNodo) + " remanente " +
+                         std::to_string(ordenCompra.kwh) + " kWh (reinsertada)");
+            else
+                debugLog("[Matching] Compra nodo " +
+                         std::to_string(ordenCompra.idNodo) + " completada");
+
+            if (ordenVenta.kwh > UMBRAL)
+                debugLog("[Matching] Venta nodo " +
+                         std::to_string(ordenVenta.idNodo) + " remanente " +
+                         std::to_string(ordenVenta.kwh) + " kWh (reinsertada)");
+            else
+                debugLog("[Matching] Venta nodo " +
+                         std::to_string(ordenVenta.idNodo) + " completada");
 
             // Limpiar entradas del mapa si la cola quedó vacía
             if (mejorBid->second.empty()) bidMap.erase(mejorBid);

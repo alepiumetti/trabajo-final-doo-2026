@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unistd.h>
 
 #include "types.hpp"
 #include "GestionDatos.hpp"
@@ -24,10 +25,16 @@ static NodoRed *construirNodo(const DatoNodo &d) {
   return new NodoConsumidor(d.id, d.ubicacion, perfil, 0.0, d.saldo);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+  bool debug = false;
+  for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--debug") debug = true;
+  }
+
   Config cfg = cargarConfig();
 
   gestionDatos gestor(cfg);
+  gestor.setDebug(debug);
 
   gestor.crearTablas(cfg);
 
@@ -51,6 +58,17 @@ int main() {
   auto logger = [](const std::string &msg) { std::cout << msg << std::endl; };
 
   GridManager grid(consultarSaldo, actualizarSaldo, logger);
+  grid.setDebug(debug);
+
+  // En modo debug imprime cada paso del flujo y espera Enter.
+  auto debugPrint = [&debug](const std::string &msg) {
+    if (!debug) return;
+    std::cout << msg << std::endl;
+    if (isatty(STDIN_FILENO)) {
+      std::cout << "  (Enter para continuar)\n";
+      std::cin.get();
+    }
+  };
 
   NodoAlmacenamiento *bateria = nullptr;
   for (const auto &[id, nodo] : nodos) {
@@ -60,19 +78,37 @@ int main() {
     }
   }
 
+  size_t totalTransacciones = 0;
+  double totalKwh = 0.0;
+  size_t totalLecturas = 0;
+
   for (int hora = 0; hora < 24; ++hora) {
     grid.setTickActual(hora);
 
     std::string sufijo = (hora < 10) ? "0" : "";
-    std::string ruta = cfg.datosDir + "/ofertas_" + sufijo +
-                       std::to_string(hora) + ".csv";
+    std::string horaStr = sufijo + std::to_string(hora);
+    std::string ruta = cfg.datosDir + "/ofertas_" + horaStr + ".csv";
+
+    debugPrint("[Tick " + horaStr + "] Leyendo " + ruta);
+
     auto ordenes = gestor.leerCSV(ruta);
+    int compras = 0, ventas = 0;
     for (const auto &o : ordenes) {
       grid.insertarOrden(o);
+      if (o.esCompra) ++compras;
+      else ++ventas;
     }
+    debugPrint("[Tick " + horaStr + "] Órdenes cargadas: " +
+               std::to_string(ordenes.size()) + " (" +
+               std::to_string(compras) + " compra / " +
+               std::to_string(ventas) + " venta)");
 
     if (bateria) {
       double tarifa = gestor.leerTarifa(hora);
+      debugPrint("[Tick " + horaStr + "] Tarifa hora = " +
+                 std::to_string(tarifa) + " | Batería nodo " +
+                 std::to_string(bateria->getId()) + " carga = " +
+                 std::to_string(bateria->getCargaActual()) + " kWh");
       grid.insertarOfertaBateria(bateria->getId(), bateria->getCargaActual(),
                                  tarifa);
       grid.ejecutarMatching();
@@ -82,33 +118,53 @@ int main() {
     }
     grid.reevaluarPendientesPorSaldo();
 
+    const auto &txns = grid.getTransacciones();
+    double kwhTick = 0.0;
+    for (const auto &t : txns) kwhTick += t.kwh;
+    debugPrint("[Tick " + horaStr + "] Matching: " +
+               std::to_string(txns.size()) + " transacciones (" +
+               std::to_string(kwhTick) + " kWh)");
+
     // Descargar la batería por la energía vendida en el tick
     // (matching + reintentos por saldo).
     if (bateria) {
       double vendido = 0.0;
-      for (const auto &t : grid.getTransacciones()) {
+      for (const auto &t : txns) {
         if (t.idVendedor == bateria->getId()) vendido += t.kwh;
       }
       bateria->liberarEnergia(vendido);
+      debugPrint("[Tick " + horaStr + "] Batería descargada: " +
+                 std::to_string(vendido) + " kWh (carga restante " +
+                 std::to_string(bateria->getCargaActual()) + " kWh)");
     }
 
     // Persistencia transaccional del tick (bloque atómico)
-    if (gestor.persistirTransacciones(grid.getTransacciones())) {
+    if (gestor.persistirTransacciones(txns)) {
+      totalTransacciones += txns.size();
+      totalKwh += kwhTick;
+      debugPrint("[Tick " + horaStr + "] COMMIT OK: " +
+                 std::to_string(txns.size()) + " transacciones persistidas");
+
       for (const auto &[id, nodo] : nodos) {
         gestor.actualizarSaldo(id, nodo->getSaldoCuenta());
       }
+      debugPrint("[Tick " + horaStr + "] Saldos actualizados (" +
+                 std::to_string(nodos.size()) + " nodos)");
 
       // Lecturas históricas por nodo participante del tick
       std::map<int, std::pair<double, double>> lecturas;
-      for (const auto &t : grid.getTransacciones()) {
+      for (const auto &t : txns) {
         lecturas[t.idVendedor].first += t.kwh;   // producción
         lecturas[t.idComprador].second += t.kwh; // consumo
       }
       for (const auto &[idNodo, prodCons] : lecturas) {
         gestor.insertarLectura(idNodo, hora, prodCons.first, prodCons.second);
       }
+      totalLecturas += lecturas.size();
+      debugPrint("[Tick " + horaStr + "] Lecturas históricas: " +
+                 std::to_string(lecturas.size()) + " registros");
     } else {
-      logger("[Tick " + sufijo + std::to_string(hora) +
+      logger("[Tick " + horaStr +
              "] Transacciones rechazadas: ROLLBACK, saldos sin cambios.");
     }
 
@@ -119,6 +175,10 @@ int main() {
     delete nodo;
   }
   nodos.clear();
+
+  debugPrint("[Fin] Resumen: " + std::to_string(totalTransacciones) +
+             " transacciones (" + std::to_string(totalKwh) + " kWh), " +
+             std::to_string(totalLecturas) + " lecturas históricas.");
 
   std::cout << "Simulación finalizada.\n";
   return 0;

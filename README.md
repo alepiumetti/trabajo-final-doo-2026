@@ -37,6 +37,15 @@ o directamente:
 make run
 ```
 
+### Modo depuración (paso a paso)
+
+Con `--debug` el programa imprime cada paso de la simulación (matching,
+persistencia, saldos, lecturas) y espera `Enter` para continuar:
+
+```sh
+./ecogrid --debug
+```
+
 ## Limpiar artefactos
 
 ```sh

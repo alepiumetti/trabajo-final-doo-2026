@@ -1,5 +1,5 @@
 id_orden,lado,id_nodo,kwh,precio
-1,venta,5,11.6,0.79
+1,venta,2,11.6,0.79
 2,compra,3,5.8,0.89
 3,compra,3,13.2,0.86
-4,venta,5,6.6,1.03
+4,venta,4,6.6,1.03
