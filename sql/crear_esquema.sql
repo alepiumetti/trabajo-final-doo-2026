@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS TRANSACCIONES (
   id_comprador INTEGER NOT NULL,
   kwh REAL NOT NULL CHECK (kwh > 0),
   precio_unitario REAL NOT NULL CHECK (precio_unitario > 0),
+  tick_hora INTEGER CHECK (tick_hora BETWEEN 0 AND 23),
   fecha_transaccion TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (id_vendedor) REFERENCES NODOS(id_nodo),
   FOREIGN KEY (id_comprador) REFERENCES NODOS(id_nodo)

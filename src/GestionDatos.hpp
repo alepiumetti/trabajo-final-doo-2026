@@ -162,8 +162,9 @@ public:
 
   bool insertarTransaccion(const TransaccionEnergia &t) {
     const char *sql = "INSERT INTO TRANSACCIONES "
-                      "(id_vendedor, id_comprador, kwh, precio_unitario) "
-                      "VALUES (?, ?, ?, ?);";
+                      "(id_vendedor, id_comprador, kwh, precio_unitario, "
+                      "tick_hora) "
+                      "VALUES (?, ?, ?, ?, ?);";
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
       std::cerr << "Error preparando INSERT: " << sqlite3_errmsg(db) << "\n";
@@ -174,6 +175,7 @@ public:
     sqlite3_bind_int(stmt, 2, t.idComprador);
     sqlite3_bind_double(stmt, 3, t.kwh);
     sqlite3_bind_double(stmt, 4, t.precio);
+    sqlite3_bind_int(stmt, 5, t.tickHora);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
