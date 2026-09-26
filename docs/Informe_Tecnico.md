@@ -36,7 +36,7 @@ Tres capas, con una regla de dependencia de una sola dirección:
         │
         ├──► GridManager  ── motor de subasta.  NO sabe qué es SQL.
         │
-        └──► CapaDatos   ── la única clase que habla SQLite.
+        └──► GestionDatos   ── la única clase que habla SQLite.
 ```
 
 **El motor no depende de la base de datos.** `GridManager` recibe el saldo de
@@ -49,7 +49,7 @@ Los archivos:
 | Archivo | Contenido |
 |---|---|
 | `src/types.hpp` | Dominio: `NodoRed` y sus tres subclases, `Orden`, `TransaccionEnergia`, `GridManager` |
-| `src/GestionDatos.hpp` | Persistencia: `CapaDatos` (alias de `gestionDatos`) |
+| `src/GestionDatos.hpp` | Persistencia: `GestionDatos` |
 | `src/util/config.hpp` | Lectura de `config.ini` y armado del timestamp simulado |
 | `src/main.cpp` | Cableado de las capas y ciclo del día |
 | `src/ecogrid.h` | Cabecera paraguas (una sola línea para usar todo el dominio) |
@@ -312,7 +312,7 @@ instalado. Eso es peor que no tenerlo.
 
 Lo que sí quedó preparado para que el cambio sea acotado:
 
-- `CapaDatos` es **la única** clase que incluye `sqlite3.h`. Todo el SQL está
+- `GestionDatos` es **la única** clase que incluye `sqlite3.h`. Todo el SQL está
   dentro de ella, así que la superficie a migrar está delimitada.
 - El motor no sabe qué es SQL, así que no hay nada que migrar ahí.
 - `actualizar_saldo_y_lecturas` ya tiene la firma exacta del procedimiento que
@@ -320,7 +320,7 @@ Lo que sí quedó preparado para que el cambio sea acotado:
   llamada `SELECT actualizar_saldo_y_lecturas(...)` no cambia en C++.
 
 Si se consigue acceso a una instancia Oracle, el trabajo es escribir un
-`CapaDatosOracle` con la misma interfaz pública y elegirlo por configuración.
+`GestionDatosOracle` con la misma interfaz pública y elegirlo por configuración.
 
 ### 7.2 Otros puntos
 

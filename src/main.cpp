@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
   std::remove(cfg.dbPath.c_str());
 
   try {
-    CapaDatos gestor(cfg);
+    GestionDatos gestor(cfg);
     gestor.setDebug(debug);
     gestor.crearTablas(cfg);
 
@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
 
       debugPrint("[Tick " + horaStr + "] Leyendo " + ruta);
 
-      const auto ordenes = CapaDatos::leerCSV(ruta);
+      const auto ordenes = GestionDatos::leerCSV(ruta);
       int compras = 0, ventas = 0;
       for (const auto &o : ordenes) {
         if (o.esCompra)

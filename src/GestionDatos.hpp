@@ -1,10 +1,8 @@
 #ifndef GestionDatos_h
 #define GestionDatos_h
 
-#include <cmath>
 #include <fstream>
 #include <iostream>
-#include <map>
 #include <sqlite3.h>
 #include <sstream>
 #include <stdexcept>
@@ -26,16 +24,16 @@ struct DatoNodo {
 // Resultado de persistirTick: si el tick quedó confirmado, cuántas
 // transacciones y lecturas se escribieron, y el motivo en caso de rollback.
 struct ResultadoTick {
-  bool ok = true;                 // el tick quedo confirmado
-  size_t transacciones = 0;       // transacciones enviadas a persistir
-  size_t lecturas = 0;            // filas escritas en LECTURAS_HISTORICAS
-  std::string motivo;             // motivo del rollback si !ok
+  bool ok = true;           // el tick quedo confirmado
+  size_t transacciones = 0; // transacciones enviadas a persistir
+  size_t lecturas = 0;      // filas escritas en LECTURAS_HISTORICAS
+  std::string motivo;       // motivo del rollback si !ok
 };
 
-class gestionDatos {
+class GestionDatos {
 private:
   // Contexto que se le pasa al UDF actualizar_saldo_y_lecturas, que hace
-  // de procedimiento almacenado (sección 4.2 del PDF).
+  // de procedimiento almacenado.
   struct CtxProc {
     std::string *errUltimo = nullptr;
     std::string *tickHora = nullptr;
@@ -95,9 +93,6 @@ private:
     abortarTransaccion();
   }
 
-  // ------------------------------------------------------------------
-  // Procedimiento almacenado (sección 4.2 del PDF)
-  // ------------------------------------------------------------------
   // SQLite no tiene procedimientos almacenados: se registra una función SQL
   // de aplicación con la firma exacta del enunciado e se invoca desde C++
   // con la misma forma que en Oracle:
@@ -119,7 +114,8 @@ private:
     const int idNodo = sqlite3_value_int(argv[0]);
     const double kwh = sqlite3_value_double(argv[1]);
     const double precio = sqlite3_value_double(argv[2]);
-    const char *tipo = reinterpret_cast<const char *>(sqlite3_value_text(argv[3]));
+    const char *tipo =
+        reinterpret_cast<const char *>(sqlite3_value_text(argv[3]));
 
     if (!tipo) {
       *c->errUltimo = "actualizar_saldo_y_lecturas: tipo_operacion nulo";
@@ -130,22 +126,24 @@ private:
     const bool esCompra = std::string(tipo) == "compra";
     if (!esCompra && std::string(tipo) != "venta") {
       *c->errUltimo = std::string("actualizar_saldo_y_lecturas: tipo_operacion "
-                                  "desconocida: ") + tipo;
+                                  "desconocida: ") +
+                      tipo;
       sqlite3_result_error(ctx, "tipo_operacion invalida", -1);
       return;
     }
 
     sqlite3 *db = sqlite3_context_db_handle(ctx);
     const double monto = kwh * precio;
-    const char *sqlSaldo =
-        esCompra ? "UPDATE NODOS SET saldo_cuenta = saldo_cuenta - ? WHERE id_nodo = ?;"
-                 : "UPDATE NODOS SET saldo_cuenta = saldo_cuenta + ? WHERE id_nodo = ?;";
+    const char *sqlSaldo = esCompra ? "UPDATE NODOS SET saldo_cuenta = "
+                                      "saldo_cuenta - ? WHERE id_nodo = ?;"
+                                    : "UPDATE NODOS SET saldo_cuenta = "
+                                      "saldo_cuenta + ? WHERE id_nodo = ?;";
 
     // 1) saldo_cuenta en NODOS (lo vigila el CHECK saldo_cuenta >= 0).
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sqlSaldo, -1, &stmt, nullptr) != SQLITE_OK) {
-      *c->errUltimo = std::string("actualizar_saldo_y_lecturas: ") +
-                      sqlite3_errmsg(db);
+      *c->errUltimo =
+          std::string("actualizar_saldo_y_lecturas: ") + sqlite3_errmsg(db);
       sqlite3_result_error(ctx, "fallo al preparar el ajuste de saldo", -1);
       return;
     }
@@ -155,8 +153,9 @@ private:
     sqlite3_finalize(stmt);
 
     if (rc != SQLITE_DONE) {
-      *c->errUltimo = std::string("actualizar_saldo_y_lecturas (saldo del nodo ") +
-                      etiquetaNodo(idNodo) + "): " + sqlite3_errmsg(db);
+      *c->errUltimo =
+          std::string("actualizar_saldo_y_lecturas (saldo del nodo ") +
+          etiquetaNodo(idNodo) + "): " + sqlite3_errmsg(db);
       sqlite3_result_error(ctx, "fallo al ajustar el saldo", -1);
       return;
     }
@@ -173,8 +172,9 @@ private:
         "INSERT INTO LECTURAS_HISTORICAS (id_nodo, tick_hora, "
         "produccion_kwh, consumo_kwh, excedente_neto) "
         "VALUES (?, ?, ?, ?, ?);";
-    const std::string &ts =
-        (c->tickHora && !c->tickHora->empty()) ? *c->tickHora : std::string("00");
+    const std::string &ts = (c->tickHora && !c->tickHora->empty())
+                                ? *c->tickHora
+                                : std::string("00");
 
     const double produccion = esCompra ? 0.0 : kwh;
     const double consumo = esCompra ? kwh : 0.0;
@@ -184,8 +184,8 @@ private:
 
     stmt = nullptr;
     if (sqlite3_prepare_v2(db, sqlLectura, -1, &stmt, nullptr) != SQLITE_OK) {
-      *c->errUltimo = std::string("actualizar_saldo_y_lecturas: ") +
-                      sqlite3_errmsg(db);
+      *c->errUltimo =
+          std::string("actualizar_saldo_y_lecturas: ") + sqlite3_errmsg(db);
       sqlite3_result_error(ctx, "fallo al preparar la lectura", -1);
       return;
     }
@@ -198,8 +198,9 @@ private:
     sqlite3_finalize(stmt);
 
     if (rc != SQLITE_DONE) {
-      *c->errUltimo = std::string("actualizar_saldo_y_lecturas (lectura del nodo ") +
-                      etiquetaNodo(idNodo) + "): " + sqlite3_errmsg(db);
+      *c->errUltimo =
+          std::string("actualizar_saldo_y_lecturas (lectura del nodo ") +
+          etiquetaNodo(idNodo) + "): " + sqlite3_errmsg(db);
       sqlite3_result_error(ctx, "fallo al registrar la lectura", -1);
       return;
     }
@@ -225,8 +226,7 @@ private:
   bool invocarActualizarSaldoYLecturas(int idNodo, double kwh, double precio,
                                        const std::string &tipoOperacion) {
     if (tickHoraActual_.empty()) {
-      errUltimo_ =
-          "tick_hora sin valor: revisa 'fecha_simulada' en config.ini";
+      errUltimo_ = "tick_hora sin valor: revisa 'fecha_simulada' en config.ini";
       return false;
     }
     const char *sql = "SELECT actualizar_saldo_y_lecturas(?, ?, ?, ?);";
@@ -244,15 +244,15 @@ private:
 
     if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
       if (errUltimo_.empty())
-        errUltimo_ = std::string("actualizar_saldo_y_lecturas: ") +
-                     sqlite3_errmsg(db);
+        errUltimo_ =
+            std::string("actualizar_saldo_y_lecturas: ") + sqlite3_errmsg(db);
       return false;
     }
     return true;
   }
 
 public:
-  explicit gestionDatos(const Config &cfg) {
+  explicit GestionDatos(const Config &cfg) {
     if (sqlite3_open(cfg.dbPath.c_str(), &db) != SQLITE_OK) {
       std::cerr << "No se pudo abrir la base de datos: " << sqlite3_errmsg(db)
                 << "\n";
@@ -267,7 +267,7 @@ public:
     }
   }
 
-  ~gestionDatos() {
+  ~GestionDatos() {
     if (db)
       sqlite3_close(db);
   }
@@ -299,8 +299,7 @@ public:
   bool confirmarTransaccion() { return ejecutarSQL("COMMIT;"); }
   bool abortarTransaccion() { return ejecutarSQL("ROLLBACK;"); }
 
-  // Persiste TODO el tick en un único bloque atómico. El orden es el
-  // que pide el PDF (secciones 3.2 y 4.2):
+  // Persiste TODO el tick en un único bloque atómico.
   //
   //   BEGIN IMMEDIATE
   //     por cada transaccion:
@@ -330,10 +329,10 @@ public:
     debugLog("[BD] BEGIN IMMEDIATE (bloque atomico del tick)");
 
     for (const auto &t : trans) {
-      debugLog("[BD] INSERT transaccion: vendedor=" +
-               etiquetaNodo(t.idVendedor) + " comprador=" +
-               etiquetaNodo(t.idComprador) + " kWh=" + std::to_string(t.kwh) +
-               " precio=" + std::to_string(t.precio));
+      debugLog(
+          "[BD] INSERT transaccion: vendedor=" + etiquetaNodo(t.idVendedor) +
+          " comprador=" + etiquetaNodo(t.idComprador) + " kWh=" +
+          std::to_string(t.kwh) + " precio=" + std::to_string(t.precio));
 
       if (!insertarTransaccion(t)) {
         r.motivo = motivoSQL("insertando la transaccion");
@@ -346,9 +345,9 @@ public:
       // suma saldo (su lectura cuenta como producción); el del comprador
       // lo resta (su lectura cuenta como consumo).
       if (!invocarActualizarSaldoYLecturas(t.idVendedor, t.kwh, t.precio,
-                                            "venta") ||
+                                           "venta") ||
           !invocarActualizarSaldoYLecturas(t.idComprador, t.kwh, t.precio,
-                                            "compra")) {
+                                           "compra")) {
         r.motivo = errUltimo_;
         deshacerTransaccion(r.motivo);
         r.ok = false;
@@ -442,10 +441,6 @@ public:
     return tarifa;
   }
 
-  // ----------------------------------------------------------
-  // Lectura de ofertas_HH.csv (sección 6.1 del PDF)
-  // ----------------------------------------------------------
-  // Formato: id_orden,lado,id_nodo,kwh,precio
   static std::vector<Orden> leerCSV(const std::string &rutaArchivo) {
     std::vector<Orden> filas;
 
@@ -480,7 +475,8 @@ public:
       Orden o;
       try {
         o.idOrden = std::stoi(columnas[0]);
-        o.esCompra = (columnas[1] == "compra"); // "compra" -> true, "venta" -> false
+        o.esCompra =
+            (columnas[1] == "compra"); // "compra" -> true, "venta" -> false
         o.idNodo = std::stoi(columnas[2]);
         o.kwh = std::stod(columnas[3]);
         o.precio = std::stod(columnas[4]);
@@ -495,12 +491,6 @@ public:
 
     return filas;
   }
-
 };
-
-// El PDF (seccion 4.1) llama a esta capa "CapaDatos". Se mantiene
-// gestionDatos como nombre propio del proyecto y se agrega el alias del
-// enunciado, para que el diagrama UML y el codigo hablen el mismo idioma.
-using CapaDatos = gestionDatos;
 
 #endif // GestionDatos_h

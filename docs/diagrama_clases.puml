@@ -105,7 +105,7 @@ package "Dominio — motor de subasta (src/types.hpp)" {
 
 package "Persistencia (src/GestionDatos.hpp)" {
 
-  class CapaDatos <<alias gestionDatos>> {
+  class GestionDatos {
     - db : sqlite3*
     - debug_ : bool
     - errUltimo_ : string
@@ -139,14 +139,14 @@ package "Persistencia (src/GestionDatos.hpp)" {
     - motivo : string
   }
 
-  note right of CapaDatos
+  note right of GestionDatos
     Único punto de la aplicación
     que habla SQL. No aparece
     ningún #include de sqlite3
     fuera de esta clase.
   end note
 
-  note bottom of CapaDatos
+  note bottom of GestionDatos
     <b>actualizar_saldo_y_lecturas</b>
     Procedimiento almacenado que exige
     el enunciado (sección 4.2).
@@ -158,9 +158,9 @@ package "Persistencia (src/GestionDatos.hpp)" {
       p_kwh, p_precio, p_tipo_operacion)
   end note
 
-  CapaDatos ..> ResultadoTick : devuelve
-  CapaDatos ..> DatoNodo : devuelve
-  CapaDatos ..> Orden : lee
+  GestionDatos ..> ResultadoTick : devuelve
+  GestionDatos ..> DatoNodo : devuelve
+  GestionDatos ..> Orden : lee
 }
 
 package "Configuración (src/util/config.hpp)" {
@@ -180,10 +180,10 @@ package "Simulación (src/main.cpp)" {
 
 ' ---- Relaciones entre capas ----
 SimuladorEcoGrid --> GridManager : usa
-SimuladorEcoGrid --> CapaDatos : usa
+SimuladorEcoGrid --> GestionDatos : usa
 SimuladorEcoGrid --> Config : lee
 SimuladorEcoGrid --> NodoAlmacenamiento : descarga tras el COMMIT
-CapaDatos ..> TransaccionEnergia : persiste
-CapaDatos ..> Config : recibe
+GestionDatos ..> TransaccionEnergia : persiste
+GestionDatos ..> Config : recibe
 
 @enduml

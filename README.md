@@ -63,7 +63,7 @@ Borra los archivos objeto (`.o`) y el ejecutable `ecogrid`.
 | Ruta                    | Descripción                                                                |
 | ----------------------- | -------------------------------------------------------------------------- |
 | `src/main.cpp`          | Punto de entrada del programa                                              |
-| `src/GestionDatos.hpp`  | Capa de datos (`CapaDatos`): esquema, transaccionalidad por tick, lecturas |
+| `src/GestionDatos.hpp`  | Capa de datos (`GestionDatos`): esquema, transaccionalidad por tick, lecturas |
 | `src/types.hpp`         | Tipos del dominio (nodos, órdenes, `GridManager`)                          |
 | `src/util/config.hpp`   | Lector de `config.ini`                                                     |
 | `src/util/config.ini`   | Configuración (ruta BD, datos, script SQL, fecha simulada)                 |

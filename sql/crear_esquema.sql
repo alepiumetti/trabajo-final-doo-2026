@@ -147,6 +147,6 @@ END;
 -- depender de un servidor Oracle para poder correr la simulación.
 --
 -- p_tipo_operacion: 'compra' (descuenta saldo) | 'venta' (acumula).
--- El cuerpo vive en gestionDatos::callbackActualizarSaldoYLecturas.
+-- El cuerpo vive en GestionDatos::callbackActualizarSaldoYLecturas.
 -- Ver src/GestionDatos.hpp.
 -- ------------------------------------------------------------
