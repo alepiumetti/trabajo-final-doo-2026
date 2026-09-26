@@ -51,7 +51,6 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     - capacidadMax : double
     --
     + getCargaActual() : double
-    + getCapacidadMax() : double
     + capacidadDisponible() : double
     + absorberEnergia(kwh) : double
     + liberarEnergia(kwh) : double
@@ -69,9 +68,8 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     - idComprador : int
     - kwh : double
     - precio : double
+    - timestamp : system_clock::time_point
     - tickHora : int
-    --
-    + getMontoTotal() : double
   }
 
   class GridManager {

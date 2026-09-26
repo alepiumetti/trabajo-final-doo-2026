@@ -10,11 +10,8 @@
 #include <queue>
 #include <utility>
 #include <cstdint>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <map>
-#include <optional>
 #include <string>
 #include <vector>
 #include <unistd.h>
@@ -132,8 +129,6 @@ public:
 
     double getCargaActual() const { return cargaActual; }
 
-    double getCapacidadMax() const { return capacidadMax; }
-
     double capacidadDisponible() const { return capacidadMax - cargaActual; }
 
     std::string estado() const {
@@ -170,16 +165,12 @@ struct TransaccionEnergia {
     std::chrono::system_clock::time_point timestamp;
     int tickHora; // hora simulada (0-23) para trazabilidad
 
-    TransaccionEnergia() = default;
-
     TransaccionEnergia(int idVendedor, int idComprador,
                        double kwh, double precio, int tickHora)
         : idVendedor(idVendedor), idComprador(idComprador),
           kwh(kwh), precio(precio),
           timestamp(std::chrono::system_clock::now()),
           tickHora(tickHora) {}
-
-    double getMontoTotal() const { return kwh * precio; }
 };
 
 //  ========================== GRID MANAGER  ==========================
