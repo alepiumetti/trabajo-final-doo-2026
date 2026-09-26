@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
   size_t totalLecturas = 0;
 
   for (int hora = 0; hora < 24; ++hora) {
-    std::cout << " ========== Tick " << hora << " ========== \n" << std::endl;
+    std::cout << " \n ========== Tick " << hora << " ========== \n" << std::endl;
     grid.setTickActual(hora);
 
     std::string sufijo = (hora < 10) ? "0" : "";
