@@ -5,24 +5,26 @@
 #include <fstream>
 #include <string>
 
+#include "../constantes.hpp"
+
 struct Config {
-  std::string dbPath = "./ejemplo.db";
-  std::string datosDir = "./datos";
-  std::string sqlPath = "./sql/crear_esquema.sql";
+  std::string dbPath = DB_PATH_DEFAULT;
+  std::string datosDir = DATOS_DIR_DEFAULT;
+  std::string sqlPath = SQL_PATH_DEFAULT;
   // Fecha base del día simulado (AAAA-MM-DD). Se combina con la hora
   // del tick para armar el timestamp de LECTURAS_HISTORICAS.
-  std::string fechaSimulada = "2026-06-01";
+  std::string fechaSimulada = FECHA_SIMULADA_DEFAULT;
 };
 
 // Timestamp simulado de un tick: "<fecha_simulada> <HH>:00:00".
 inline std::string timestampTick(const Config &cfg, int hora) {
-  char buffer[32];
+  char buffer[BUFFER_TICK_TS];
   std::snprintf(buffer, sizeof(buffer), "%s %02d:00:00",
                 cfg.fechaSimulada.c_str(), hora);
   return std::string(buffer);
 }
 
-inline Config cargarConfig(const std::string &ruta = "./src/util/config.ini") {
+inline Config cargarConfig(const std::string &ruta = CONFIG_INI_PATH) {
   Config cfg;
   std::ifstream archivo(ruta);
   if (!archivo.is_open()) {

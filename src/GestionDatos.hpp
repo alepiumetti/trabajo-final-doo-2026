@@ -12,6 +12,7 @@
 
 #include "types.hpp"
 #include "util/config.hpp"
+#include "constantes.hpp"
 
 struct DatoNodo {
   int id;
@@ -79,7 +80,7 @@ private:
   }
 
   static std::string etiquetaNodo(int id) {
-    return id == BATERIA ? std::string("Bateria") : std::to_string(id);
+    return id == BATERIA ? std::string(TIPO_BATERIA) : std::to_string(id);
   }
 
   std::string motivoSQL(const std::string &contexto) {
@@ -123,8 +124,8 @@ private:
       return;
     }
 
-    const bool esCompra = std::string(tipo) == "compra";
-    if (!esCompra && std::string(tipo) != "venta") {
+    const bool esCompra = std::string(tipo) == OP_COMPRA;
+    if (!esCompra && std::string(tipo) != OP_VENTA) {
       *c->errUltimo = std::string("actualizar_saldo_y_lecturas: tipo_operacion "
                                   "desconocida: ") +
                       tipo;
@@ -174,7 +175,7 @@ private:
         "VALUES (?, ?, ?, ?, ?);";
     const std::string &ts = (c->tickHora && !c->tickHora->empty())
                                 ? *c->tickHora
-                                : std::string("00");
+                                : std::string(TS_TICK_DEFAULT);
 
     const double produccion = esCompra ? 0.0 : kwh;
     const double consumo = esCompra ? kwh : 0.0;
@@ -345,16 +346,16 @@ public:
       // suma saldo (su lectura cuenta como producción); el del comprador
       // lo resta (su lectura cuenta como consumo).
       if (!invocarActualizarSaldoYLecturas(t.idVendedor, t.kwh, t.precio,
-                                           "venta") ||
+                                           OP_VENTA) ||
           !invocarActualizarSaldoYLecturas(t.idComprador, t.kwh, t.precio,
-                                           "compra")) {
+                                           OP_COMPRA)) {
         r.motivo = errUltimo_;
         deshacerTransaccion(r.motivo);
         r.ok = false;
         return r;
       }
 
-      r.lecturas += 2;
+      r.lecturas += LECTURAS_POR_TRANSACCION;
     }
 
     debugLog("[BD] COMMIT (" + std::to_string(trans.size()) +
@@ -476,7 +477,7 @@ public:
       try {
         o.idOrden = std::stoi(columnas[0]);
         o.esCompra =
-            (columnas[1] == "compra"); // "compra" -> true, "venta" -> false
+            (columnas[1] == OP_COMPRA); // "compra" -> true, "venta" -> false
         o.idNodo = std::stoi(columnas[2]);
         o.kwh = std::stod(columnas[3]);
         o.precio = std::stod(columnas[4]);

@@ -20,6 +20,7 @@ qué proveen, por qué se usan y dónde. Revisado el 2026-09-26.
 | ---------------- | -------------------------------------------------------- |
 | `GestionDatos.hpp` | `GestionDatos`: persistencia SQLite, CSV, tarifas |
 | `types.hpp`        | `NodoRed` y subclases, `GridManager`, `Orden`, `TransaccionEnergia` |
+| `constantes.hpp`   | Todos los `#define` del dominio y defaults de config     |
 | `util/config.hpp`  | `Config`, `cargarConfig()`, `timestampTick()`            |
 
 > **Pendiente**: el bloque `#include <stdexcept>` quedó dentro de un conflicto
@@ -42,6 +43,12 @@ qué proveen, por qué se usan y dónde. Revisado el 2026-09-26.
 | `<vector>`   | `std::vector`                                   | `transaccionesDelTick` (`:193,281,410`)                   |
 | `<unistd.h>` | `isatty`, `STDIN_FILENO`                        | Pausa "Enter" solo si stdin es terminal, en modo debug (`:213`) |
 
+### Módulos propios
+
+| Import            | Provee                                        |
+| ----------------- | --------------------------------------------- |
+| `constantes.hpp`  | `BATERIA`, `CAPACIDAD_BATERIA`, `UMBRAL`, tipos, perfiles, operaciones |
+
 ## 3. src/GestionDatos.hpp (persistencia)
 
 | Import         | Provee                                   | Uso                                                       |
@@ -60,6 +67,7 @@ qué proveen, por qué se usan y dónde. Revisado el 2026-09-26.
 | Import            | Provee                                                          |
 | ----------------- | --------------------------------------------------------------- |
 | `types.hpp`       | `Orden`, `TransaccionEnergia`, `BATERIA`                        |
+| `constantes.hpp`  | `OP_COMPRA`, `OP_VENTA`, `TS_TICK_DEFAULT`, `LECTURAS_POR_TRANSACCION` |
 | `util/config.hpp` | `Config`                                                        |
 
 > Se quitaron `<cmath>` y `<map>`: no se usaban en este archivo
@@ -73,6 +81,12 @@ qué proveen, por qué se usan y dónde. Revisado el 2026-09-26.
 | `<fstream>`| `std::ifstream`         | Lectura de `config.ini` (`:27`)                      |
 | `<string>` | `std::string` y métodos | Parseo `clave=valor` (`:33-56`)                      |
 
+### Módulos propios
+
+| Import             | Provee                                                   |
+| ------------------ | -------------------------------------------------------- |
+| `../constantes.hpp` | Defaults de rutas/fecha y `BUFFER_TICK_TS` (`DB_PATH_DEFAULT`, `DATOS_DIR_DEFAULT`, ...) |
+
 ## 5. src/ecogrid.h (cabecera paraguas)
 
 No importa librerías: agrega los tres headers del proyecto
@@ -83,15 +97,25 @@ sección 7).
 ## Grafo de dependencias entre módulos propios
 
 ```
-main.cpp ──> GestionDatos.hpp ──> types.hpp
-   │                │                └──> (sin dependencias propias)
-   │                └──> util/config.hpp
-   └──> types.hpp
+main.cpp ──> GestionDatos.hpp ──> types.hpp ──> constantes.hpp
+   │                │                │
+   │                │                └──> constantes.hpp (transitiva)
+   │                │
+   │                └──> util/config.hpp ──> constantes.hpp
+   │                └──> constantes.hpp
+   │
+   └──> types.hpp ──> constantes.hpp
+   └──> util/config.hpp ──> constantes.hpp
+   └──> constantes.hpp
+
 ecogrid.h ──> GestionDatos.hpp, types.hpp, util/config.hpp
+             (constantes llega transitiva por los tres)
 ```
 
-- `types.hpp` (dominio) no depende de nada propio: es la base.
-- `GestionDatos.hpp` (persistencia) depende del dominio y de la config.
+- `constantes.hpp` no depende de nada: es la base de todo el proyecto.
+- `types.hpp` (dominio) depende solo de `constantes.hpp`.
+- `util/config.hpp` depende solo de `constantes.hpp` (`../constantes.hpp`).
+- `GestionDatos.hpp` (persistencia) depende del dominio, de la config y de las constantes.
 - `main.cpp` orquesta las tres capas.
 - `ecogrid.h` es un agregador: no agrega lógica.
 

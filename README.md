@@ -65,6 +65,7 @@ Borra los archivos objeto (`.o`) y el ejecutable `ecogrid`.
 | `src/main.cpp`          | Punto de entrada del programa                                              |
 | `src/GestionDatos.hpp`  | Capa de datos (`GestionDatos`): esquema, transaccionalidad por tick, lecturas |
 | `src/types.hpp`         | Tipos del dominio (nodos, órdenes, `GridManager`)                          |
+| `src/constantes.hpp`    | Constantes del dominio y defaults de config (todos los `#define`)          |
 | `src/util/config.hpp`   | Lector de `config.ini`                                                     |
 | `src/util/config.ini`   | Configuración (ruta BD, datos, script SQL, fecha simulada)                 |
 | `src/ecogrid.h`         | Cabecera paraguas: una línea para usar todo el dominio                     |

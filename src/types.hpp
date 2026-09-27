@@ -1,9 +1,7 @@
 #ifndef types_h
 #define types_h
 
-// Id del nodo Batería Comunitaria. Debe coincidir con la semilla de
-// sql/crear_esquema.sql y con los casos de aceptación del PDF.
-#define BATERIA 99
+#include "constantes.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -99,7 +97,8 @@ private:
 
 public:
   NodoAlmacenamiento(int id, std::string ubicacion, double cargaActual = 0.0,
-                     double capacidadMax = 1000.0, double saldoCuenta = 0.0)
+                     double capacidadMax = CAPACIDAD_BATERIA,
+                     double saldoCuenta = 0.0)
       : NodoRed(id, std::move(ubicacion), cargaActual, saldoCuenta),
         cargaActual(cargaActual), capacidadMax(capacidadMax) {}
 
@@ -163,9 +162,6 @@ private:
 
   // Transacciones generadas en el tick actual (a persistir)
   std::vector<TransaccionEnergia> transaccionesDelTick;
-
-  // Umbral de energía residual para considerar una orden "completada"
-  static constexpr double UMBRAL = 0.001;
 
   int tickActual = 0;
 
@@ -500,10 +496,10 @@ private:
     }
 
     log("[Transaccion] Vendedor=" +
-        (idVendedor == BATERIA ? std::string("Bateria")
+        (idVendedor == BATERIA ? std::string(TIPO_BATERIA)
                                : std::to_string(idVendedor)) +
         " Comprador=" +
-        (idComprador == BATERIA ? std::string("Bateria")
+        (idComprador == BATERIA ? std::string(TIPO_BATERIA)
                                 : std::to_string(idComprador)) +
         " kWh=" + std::to_string(kwh) + " Precio=" + std::to_string(precio));
   }

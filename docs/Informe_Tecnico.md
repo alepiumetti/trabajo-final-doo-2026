@@ -2,28 +2,25 @@
 
 **Trabajo Práctico Integrador · Programación Orientada a Objetos · 2026**
 
-Simulador de una red eléctrica _community energy market_: 24 ticks (uno por
-hora), subasta de doble continua para casar órdenes de compra y venta, y una
-batería comunitaria que compra los excedentes sin comprador y los revende en
-las horas caras. La capa de datos persiste en SQLite3 (adaptación de Oracle +
-SOCI, ver §8.1).
+Simulador de red eléctrica, con nodos consumidores, prosumidores y batería que se compran y venden a traves de un matching persistiendo las transacciones en una base de datos SQLite3.
 
 ---
 
 ## 1. Cómo compilar y correr
 
 ```bash
-make            # compila ./ecogrid
+make            
 make run        # o directamente: ./ecogrid
 ./ecogrid       # corre los 24 ticks desde la semilla (borra ejemplo.db antes)
 ./ecogrid --debug   # imprime cada paso y espera Enter (modo paso a paso)
 ```
 
-Cada ejecución borra `ejemplo.db` y arranca del estado inicial de la semilla:
-la corrida es siempre limpia y determinista.
+Cada ejecución borra `ejemplo.db` y arranca del estado inicial de la semilla: la simulación siempre es limpia.
 
 Requisitos: g++ con `-std=c++17` y `libsqlite3-dev`. Verificado con g++ 13.3.0
-y SQLite 3.45.1. La compilación es limpia: cero warnings con `-Wall -Wextra`.
+y SQLite 3.45.1. 
+
+Se decidió crear un archivo Makefile para agilizar la compilación para pruebas repetidas que se debieron hacer, facilitando ejecutar la compilación completa con un solo comando, además de su ejecución también con un comando único.
 
 ---
 
@@ -39,33 +36,45 @@ Tres capas, con una regla de dependencia de una sola dirección:
         └──► GestionDatos   ── la única clase que habla SQLite.
 ```
 
-**El motor no depende de la base de datos.** `GridManager` recibe el saldo de
-los nodos por callback (`consultarSaldo`, `actualizarSaldo`) en vez de ir a
-buscarlo, y la capa de datos se inyecta desde `main.cpp`. Cambiar de SQLite a
-Oracle tocaría una sola clase.
+`GridManager` recibe el saldo de los nodos por callback en vez de ir a buscarlo, y la capa de datos se inyecta desde `main.cpp`. 
 
-Los archivos:
+> Se decidió mantener la lógica de datos aparte para permitirnos trabajar por separado, por un lado la gestión de los datos y por otro lado la lógica del simulador, facilitandonos la migración de SOCI+Oracle a SQLite3 y la división de tareas en el equipo.
 
-| Archivo | Contenido |
-|---|---|
-| `src/types.hpp` | Dominio: `NodoRed` y sus tres subclases, `Orden`, `TransaccionEnergia`, `GridManager` |
-| `src/GestionDatos.hpp` | Persistencia: `GestionDatos` |
-| `src/util/config.hpp` | Lectura de `config.ini` y armado del timestamp simulado |
-| `src/main.cpp` | Cableado de las capas y ciclo del día |
-| `src/ecogrid.h` | Cabecera paraguas (una sola línea para usar todo el dominio) |
-| `sql/crear_esquema.sql` | Esquema, semilla, tarifa y trigger |
-| `datos/ofertas_*.csv` | Órdenes de cada tick (24 archivos) |
+**Los archivos**:
+
+| Archivo                 | Contenido                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `src/types.hpp`         | Dominio: `NodoRed` y sus tres subclases, `Orden`, `TransaccionEnergia`, `GridManager`                           |
+| `src/constantes.hpp`    | Constantes y defaults de config (`BATERIA`, `CAPACIDAD_BATERIA`, `UMBRAL`, tipos, perfiles, operaciones, rutas) |
+| `src/GestionDatos.hpp`  | Persistencia: `GestionDatos`                                                                                    |
+| `src/util/config.hpp`   | Lectura de `config.ini` y armado del timestamp simulado                                                         |
+| `src/main.cpp`          | Cableado de las capas y ciclo del día                                                                           |
+| `src/ecogrid.h`         | Cabecera paraguas (una sola línea para usar todo el dominio)                                                    |
+| `sql/crear_esquema.sql` | Esquema, semilla, tarifa y trigger                                                                              |
+| `datos/ofertas_*.csv`   | Órdenes de cada tick (24 archivos)                                                                              |
 
 ### 2.1 Jerarquía de nodos
 
-`NodoRed` es abstracta con un único método `calcularExcedente()`. Las tres
-subclases lo interpretan según el rol del nodo:
+`NodoRed` es abstracta, con los atributos `id`, `ubicacion`, `balanceEnergia`
+(kW actual) y `saldoCuenta` (créditos), y un único método virtual puro
+`virtual double calcularExcedente() const = 0;` — tal como lo pide el punto 4.1
+del enunciado. Las tres subclases lo interpretan según el rol del nodo:
 
-- **`NodoConsumidor`** — excedente = producción − consumo. Nunca vende.
-- **`NodoProsumidor`** — produce y consume; su excedente es `produccion - consumo`.
-- **`NodoAlmacenamiento`** — su excedente es la carga almacenada. Es el caso
-  especial que rompe la fórmula común, y por eso tiene su propia
-  implementación y los métodos `absorberEnergia` / `liberarEnergia`.
+- **`NodoConsumidor`** — solo demanda: `calcularExcedente()` retorna siempre
+  negativo o cero (0 si `balanceEnergia` es positivo, si no el propio
+  `balanceEnergia`). No produce; su demanda real entra por las órdenes de
+  compra del CSV.
+- **`NodoProsumidor`** — produce y consume; su excedente es
+  `produccion - consumo` (positivo si hay excedente).
+- **`NodoAlmacenamiento`** — su excedente es la carga almacenada. Mantiene
+  `balanceEnergia` sincronizado con la carga en `absorberEnergia` /
+  `liberarEnergia`, que es su comportamiento propio.
+
+> **Nota sobre `calcularExcedente()` y la base de datos.** `calcularExcedente()`
+> es un requisito del enunciado (4.1) y hoy no tiene llamadores en runtime:
+> `balanceEnergia` del objeto es estado en memoria que nunca se persiste. El
+> `excedente_neto` que se guarda en `LECTURAS_HISTORICAS` lo calcula la capa de
+> datos por transacción (ver §4.3), independiente del atributo de la clase.
 
 La subclase de cada nodo no se decide en el código sino leyendo la columna
 `tipo` de la tabla `NODOS` (`main.cpp: construirNodo`). Agregar un tipo de nodo
@@ -222,12 +231,12 @@ Cinco de las 24 horas están fijadas a los precios base que el enunciado usa en
 los casos de aceptación:
 
 | Hora | Precio base kWh |
-|---|---|
-| 10 | 1,00 |
-| 12 | 1,50 |
-| 14 | 1,00 |
-| 15 | 1,20 |
-| 18 | 2,00 |
+| ---- | --------------- |
+| 10   | 1,00            |
+| 12   | 1,50            |
+| 14   | 1,00            |
+| 15   | 1,20            |
+| 18   | 2,00            |
 
 La de las 15:00 es la que condiciona el caso 4: si la tarifa fuera mayor que
 la orden de compra (1,50), la batería no cruzaría con el comprador y el tick
@@ -238,7 +247,7 @@ advierte en un comentario.
 ### 4.2 La batería es el nodo 99
 
 El enunciado usa el nodo 99 como batería comunitaria ("configurado en BD con
-saldo ilimitado para simplificar"). `BATERIA` en `types.hpp` y la semilla del
+saldo ilimitado para simplificar"). `BATERIA` en `src/constantes.hpp` y la semilla del
 esquema coinciden en ese id; ningún CSV la referencia, solo interviene por su
 cuenta.
 

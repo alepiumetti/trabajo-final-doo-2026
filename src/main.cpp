@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "constantes.hpp"
 #include "GestionDatos.hpp"
 #include "types.hpp"
 #include "util/config.hpp"
@@ -15,18 +16,18 @@ namespace {
 // Se resuelve con unique_ptr: el mapa de nodos es dueño de todos
 // los objetos y no hay delete manual.
 std::unique_ptr<NodoRed> construirNodo(const DatoNodo &d) {
-  if (d.tipo == "Prosumidor") {
+  if (d.tipo == TIPO_PROSUMIDOR) {
     return std::make_unique<NodoProsumidor>(d.id, d.ubicacion, 0.0, 0.0,
                                             d.saldo);
   }
-  if (d.tipo == "Bateria") {
-    return std::make_unique<NodoAlmacenamiento>(d.id, d.ubicacion, 0.0, 1000.0,
-                                                d.saldo);
+  if (d.tipo == TIPO_BATERIA) {
+    return std::make_unique<NodoAlmacenamiento>(d.id, d.ubicacion, 0.0,
+                                                CAPACIDAD_BATERIA, d.saldo);
   }
   PerfilConsumo perfil = Residencial;
-  if (d.perfil == "Comercial")
+  if (d.perfil == PERFIL_COMERCIAL)
     perfil = Comercial;
-  else if (d.perfil == "Industrial")
+  else if (d.perfil == PERFIL_INDUSTRIAL)
     perfil = Industrial;
   return std::make_unique<NodoConsumidor>(d.id, d.ubicacion, perfil, 0.0,
                                           d.saldo);
@@ -37,7 +38,7 @@ std::unique_ptr<NodoRed> construirNodo(const DatoNodo &d) {
 int main(int argc, char *argv[]) {
   bool debug = false;
   for (int i = 1; i < argc; ++i) {
-    if (std::string(argv[i]) == "--debug")
+    if (std::string(argv[i]) == FLAG_DEBUG)
       debug = true;
   }
 
@@ -101,7 +102,7 @@ int main(int argc, char *argv[]) {
     double totalKwh = 0.0;
     size_t totalLecturas = 0;
 
-    for (int hora = 0; hora < 24; ++hora) {
+    for (int hora = 0; hora < HORAS_POR_DIA; ++hora) {
       std::cout << " \n ========== Tick " << hora << " ========== \n"
                 << std::endl;
       grid.setTickActual(hora);

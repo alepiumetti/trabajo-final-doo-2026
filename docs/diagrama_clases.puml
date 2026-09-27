@@ -6,13 +6,28 @@
 '     ./docs/render.sh          (necesita plantuml + graphviz)
 ' o el servidor público de PlantUML.
 '
-' Cubre las tres capas del enunciado:
+' Cubre las capas del enunciado:
+'   - Constantes                (src/constantes.hpp)
 '   - Dominio / motor de subasta  (src/types.hpp)
 '   - Persistencia               (src/GestionDatos.hpp)
 '   - Configuración              (src/util/config.hpp)
 ' ============================================================
 
 title EcoGrid — Diagrama de Clases
+
+package "Constantes (src/constantes.hpp)" as constantes {
+
+  note as N_CONST
+    <b>#defines</b> del dominio y de config
+    -- BATERIA = 99
+    -- CAPACIDAD_BATERIA = 1000.0
+    -- UMBRAL = 0.001
+    -- HORAS_POR_DIA = 24
+    -- TIPO_* / PERFIL_* / OP_COMPRA / OP_VENTA
+    -- DB_PATH_DEFAULT, DATOS_DIR_DEFAULT, ...
+  end note
+
+}
 
 package "Dominio — motor de subasta (src/types.hpp)" {
 
@@ -44,6 +59,8 @@ package "Dominio — motor de subasta (src/types.hpp)" {
   }
 
   class NodoProsumidor {
+    - produccion : double
+    - consumo : double
   }
 
   class NodoAlmacenamiento {
@@ -78,7 +95,6 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     - contadorSecuencia : uint64_t
     - transaccionesDelTick : vector<TransaccionEnergia>
     - tickActual : int
-    - UMBRAL : const double = 0.001
     - consultarSaldo : function<double(int)>
     - actualizarSaldo : function<bool(int,double)>
     - logger : function<void(string)>
@@ -185,5 +201,10 @@ SimuladorEcoGrid --> Config : lee
 SimuladorEcoGrid --> NodoAlmacenamiento : descarga tras el COMMIT
 GestionDatos ..> TransaccionEnergia : persiste
 GestionDatos ..> Config : recibe
+
+' Constantes: las tres capas las consumen como macros
+GridManager ..> constantes : usa UMBRAL, BATERIA, TIPO_*
+GestionDatos ..> constantes : usa OP_*, TS_TICK_DEFAULT
+Config ..> constantes : usa DB_PATH_DEFAULT, BUFFER_TICK_TS
 
 @enduml
