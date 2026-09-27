@@ -32,7 +32,7 @@ struct Orden {
         kwh(kwh), secuencia(secuencia) {}
 };
 
-class NodoRed {
+class NodoRed { // Clase abstracta que representa el nodo base
 protected:
   int id;
   std::string ubicacion;
@@ -51,6 +51,9 @@ public:
 
   double getSaldoCuenta() const { return saldoCuenta; }
   void setSaldoCuenta(double nuevoSaldo) { saldoCuenta = nuevoSaldo; }
+
+  // Identifica el rol del nodo por polimorfismo (evita dynamic_cast).
+  virtual bool esBateria() const { return false; }
 
   virtual ~NodoRed() = default;
 };
@@ -105,6 +108,8 @@ public:
   double calcularExcedente() const override { return cargaActual; };
 
   double getCargaActual() const { return cargaActual; }
+
+  bool esBateria() const override { return true; }
 
   double capacidadDisponible() const { return capacidadMax - cargaActual; }
 
@@ -483,6 +488,8 @@ private:
       return;
     }
 
+    // Agrega la transacción al vector del tick actual para luego persistirla en
+    // bloque a la base de datos
     transaccionesDelTick.emplace_back(idVendedor, idComprador, kwh, precio,
                                       tickActual);
 

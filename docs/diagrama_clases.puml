@@ -49,6 +49,7 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     - balanceEnergia : double
     --
     + {abstract} calcularExcedente() : double
+    + esBateria() : bool
     + getId() : int
     + getSaldoCuenta() : double
     + setSaldoCuenta(nuevo : double) : void
@@ -68,6 +69,7 @@ package "Dominio — motor de subasta (src/types.hpp)" {
     - capacidadMax : double
     --
     + getCargaActual() : double
+    + esBateria() : bool
     + capacidadDisponible() : double
     + absorberEnergia(kwh) : double
     + liberarEnergia(kwh) : double

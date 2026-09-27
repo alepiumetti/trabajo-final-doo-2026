@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "constantes.hpp"
 #include "GestionDatos.hpp"
+#include "constantes.hpp"
 #include "types.hpp"
 #include "util/config.hpp"
 
@@ -58,23 +58,30 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    // unique_ptr: el mapa es dueño de los nodos y los libera solo.
+    // Estructura <id, NodoRed> para consulatr y actualizar saldos.
     std::map<int, std::unique_ptr<NodoRed>> nodos;
+
     for (const auto &d : datosNodos)
       nodos.emplace(d.id, construirNodo(d));
 
+    // Función lambda -> recibe int idNodo como id y devuelve saldoCuenta
     auto consultarSaldo = [&nodos](int id) -> double {
-      auto it = nodos.find(id);
-      return (it != nodos.end()) ? it->second->getSaldoCuenta() : 0.0;
+      auto nodoEncontrado = nodos.find(id);
+      return (nodoEncontrado != nodos.end())
+                 ? nodoEncontrado->second->getSaldoCuenta()
+                 : 0.0;
     };
     auto actualizarSaldo = [&nodos](int id, double nuevoSaldo) -> bool {
-      auto it = nodos.find(id);
-      if (it == nodos.end())
+      auto nodoEncontrado = nodos.find(id);
+      if (nodoEncontrado == nodos.end())
         return false;
-      it->second->setSaldoCuenta(nuevoSaldo);
+      nodoEncontrado->second->setSaldoCuenta(nuevoSaldo);
       return true;
     };
-    auto logger = [](const std::string &msg) { std::cout << msg << std::endl; };
+
+    auto logger = [](const std::string &msg) -> void {
+      std::cout << msg << std::endl;
+    };
 
     GridManager grid(consultarSaldo, actualizarSaldo, logger);
     grid.setDebug(debug);
@@ -90,10 +97,11 @@ int main(int argc, char *argv[]) {
       }
     };
 
+    // Buscamos la bateria
     NodoAlmacenamiento *bateria = nullptr;
-    for (const auto &[id, nodo] : nodos) {
-      if (dynamic_cast<NodoAlmacenamiento *>(nodo.get())) {
-        bateria = static_cast<NodoAlmacenamiento *>(nodo.get());
+    for (const auto &par : nodos) {
+      if (par.second->esBateria()) {
+        bateria = static_cast<NodoAlmacenamiento *>(par.second.get());
         break;
       }
     }
@@ -121,8 +129,8 @@ int main(int argc, char *argv[]) {
 
       const auto ordenes = GestionDatos::leerCSV(ruta);
       int compras = 0, ventas = 0;
-      for (const auto &o : ordenes) {
-        if (o.esCompra)
+      for (const auto &orden : ordenes) {
+        if (orden.esCompra)
           ++compras;
         else
           ++ventas;
@@ -142,32 +150,35 @@ int main(int argc, char *argv[]) {
 
       // Orquestración del tick (oferta de batería -> CSV -> matching ->
       // excedentes a batería) dentro de GridManager::procesarTick.
-      const std::vector<TransaccionEnergia> txns =
+      const std::vector<TransaccionEnergia> transacciones =
           grid.procesarTick(ordenes, bateria, tarifa);
 
       double kwhTick = 0.0;
-      for (const auto &t : txns)
-        kwhTick += t.kwh;
+      for (const auto &transaccion : transacciones) {
+        kwhTick += transaccion.kwh;
+      }
       debugPrint("[Tick " + horaStr +
-                 "] Matching: " + std::to_string(txns.size()) +
+                 "] Matching: " + std::to_string(transacciones.size()) +
                  " transacciones (" + std::to_string(kwhTick) + " kWh)");
 
       // Persistencia transaccional del tick (bloque atómico): transacciones,
       // saldos y lecturas se confirman juntos o no se confirma nada.
-      const ResultadoTick r = gestor.persistirTick(txns, tickHora);
+      const ResultadoTick resultado =
+          gestor.persistirTick(transacciones, tickHora);
 
-      if (r.ok) {
-        totalTransacciones += r.transacciones;
+      if (resultado.ok) {
+        totalTransacciones += resultado.transacciones;
         totalKwh += kwhTick;
-        totalLecturas += r.lecturas;
-        debugPrint("[Tick " + horaStr + "] COMMIT OK: " +
-                   std::to_string(r.transacciones) + " transacciones y " +
-                   std::to_string(r.lecturas) + " lecturas persistidas");
+        totalLecturas += resultado.lecturas;
+        debugPrint("[Tick " + horaStr +
+                   "] COMMIT OK: " + std::to_string(resultado.transacciones) +
+                   " transacciones y " + std::to_string(resultado.lecturas) +
+                   " lecturas persistidas");
 
         // La batería se descarga recién con el tick confirmado.
         if (bateria) {
           double vendido = 0.0;
-          for (const auto &t : txns) {
+          for (const auto &t : transacciones) {
             if (t.idVendedor == bateria->getId())
               vendido += t.kwh;
           }
@@ -177,7 +188,7 @@ int main(int argc, char *argv[]) {
                      std::to_string(bateria->getCargaActual()) + " kWh)");
         }
       } else {
-        logger("[Tick " + horaStr + "] Tick rechazado: " + r.motivo);
+        logger("[Tick " + horaStr + "] Tick rechazado: " + resultado.motivo);
       }
 
       if (bateria) {

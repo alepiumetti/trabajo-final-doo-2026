@@ -80,6 +80,12 @@ La subclase de cada nodo no se decide en el código sino leyendo la columna
 `tipo` de la tabla `NODOS` (`main.cpp: construirNodo`). Agregar un tipo de nodo
 es agregar una subclase y una rama en esa función.
 
+Para identificar el rol de un nodo en runtime, `NodoRed` expone
+`virtual bool esBateria() const` (false por defecto), que `NodoAlmacenamiento`
+override a `true`. Así `main.cpp` localiza la batería por polimorfismo en vez
+de con `dynamic_cast`: recorre el mapa de nodos y toma el primero cuyo
+`esBateria()` devuelve verdadero.
+
 ### 2.2 El libro de órdenes y el matching
 
 `GridManager` guarda las órdenes en dos mapas:
