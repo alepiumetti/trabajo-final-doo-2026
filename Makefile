@@ -5,7 +5,7 @@ LDFLAGS  = -lsqlite3
 TARGET = ecogrid
 SRCS   = src/main.cpp
 OBJS   = $(SRCS:.cpp=.o)
-HDRS   = src/GestionDatos.hpp src/types.hpp src/util/config.hpp src/constantes.hpp
+HDRS   = src/ecogrid.h src/GestionDatos.hpp src/types.hpp src/util/config.hpp src/constantes.hpp
 
 ifeq ($(OS),Windows_NT)
 EXEEXT = .exe

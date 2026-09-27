@@ -89,34 +89,36 @@ qué proveen, por qué se usan y dónde. Revisado el 2026-09-26.
 
 ## 5. src/ecogrid.h (cabecera paraguas)
 
-No importa librerías: agrega los tres headers del proyecto
-(`GestionDatos.hpp`, `types.hpp`, `util/config.hpp`) para que un consumidor
-externo incluya una sola línea y tenga todo el dominio (requisito del PDF,
-sección 7).
+No importa librerías: agrega los cuatro headers del proyecto
+(`constantes.hpp`, `GestionDatos.hpp`, `types.hpp`, `util/config.hpp`) para que
+un consumidor externo incluya una sola línea y tenga todo el dominio (requisito
+del PDF, sección 7). `main.cpp` lo usa como puerta de entrada única.
 
 ## Grafo de dependencias entre módulos propios
 
 ```
-main.cpp ──> GestionDatos.hpp ──> types.hpp ──> constantes.hpp
-   │                │                │
-   │                │                └──> constantes.hpp (transitiva)
-   │                │
-   │                └──> util/config.hpp ──> constantes.hpp
-   │                └──> constantes.hpp
+main.cpp ──> ecogrid.h ──> constantes.hpp
+   │            │
+   │            ├──> GestionDatos.hpp ──> types.hpp ──> constantes.hpp
+   │            │        │                │
+   │            │        │                └──> constantes.hpp (transitiva)
+   │            │        │
+   │            │        └──> util/config.hpp ──> constantes.hpp
+   │            │        └──> constantes.hpp
+   │            │
+   │            ├──> types.hpp ──> constantes.hpp
+   │            └──> util/config.hpp ──> constantes.hpp
    │
-   └──> types.hpp ──> constantes.hpp
-   └──> util/config.hpp ──> constantes.hpp
    └──> constantes.hpp
 
-ecogrid.h ──> GestionDatos.hpp, types.hpp, util/config.hpp
-             (constantes llega transitiva por los tres)
+ecogrid.h ──> constantes.hpp, GestionDatos.hpp, types.hpp, util/config.hpp
 ```
 
 - `constantes.hpp` no depende de nada: es la base de todo el proyecto.
 - `types.hpp` (dominio) depende solo de `constantes.hpp`.
 - `util/config.hpp` depende solo de `constantes.hpp` (`../constantes.hpp`).
 - `GestionDatos.hpp` (persistencia) depende del dominio, de la config y de las constantes.
-- `main.cpp` orquesta las tres capas.
+- `main.cpp` orquesta las tres capas a través de la cabecera paraguas.
 - `ecogrid.h` es un agregador: no agrega lógica.
 
 ## Pendientes detectados en la revisión

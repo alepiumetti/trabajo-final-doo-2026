@@ -368,8 +368,8 @@ public:
                             precioBaseHora);
     }
 
-    for (const auto &o : ofertasCSV) {
-      insertarOrden(o);
+    for (const auto &oferta : ofertasCSV) {
+      insertarOrden(oferta);
     }
 
     ejecutarMatching();

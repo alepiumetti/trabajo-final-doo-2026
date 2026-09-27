@@ -5,10 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "GestionDatos.hpp"
-#include "constantes.hpp"
-#include "types.hpp"
-#include "util/config.hpp"
+#include "ecogrid.h"
 
 namespace {
 
@@ -166,7 +163,7 @@ int main(int argc, char *argv[]) {
       const ResultadoTick resultado =
           gestor.persistirTick(transacciones, tickHora);
 
-      if (resultado.ok) {
+      if (resultado.ok) { // Si el tick se confirmó
         totalTransacciones += resultado.transacciones;
         totalKwh += kwhTick;
         totalLecturas += resultado.lecturas;
@@ -175,12 +172,13 @@ int main(int argc, char *argv[]) {
                    " transacciones y " + std::to_string(resultado.lecturas) +
                    " lecturas persistidas");
 
-        // La batería se descarga recién con el tick confirmado.
+        // La batería se descarga lo vendido recién con el tick confirmado
+        // evistando inconsistencia si el commit falla.
         if (bateria) {
           double vendido = 0.0;
-          for (const auto &t : transacciones) {
-            if (t.idVendedor == bateria->getId())
-              vendido += t.kwh;
+          for (const auto &transaccion : transacciones) {
+            if (transaccion.idVendedor == bateria->getId())
+              vendido += transaccion.kwh;
           }
           bateria->liberarEnergia(vendido);
           debugPrint("[Tick " + horaStr + "] Batería descargada: " +

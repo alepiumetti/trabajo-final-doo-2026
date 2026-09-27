@@ -42,16 +42,16 @@ Tres capas, con una regla de dependencia de una sola dirección:
 
 **Los archivos**:
 
-| Archivo                 | Contenido                                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `src/types.hpp`         | Dominio: `NodoRed` y sus tres subclases, `Orden`, `TransaccionEnergia`, `GridManager`                           |
-| `src/constantes.hpp`    | Constantes y defaults de config (`BATERIA`, `CAPACIDAD_BATERIA`, `UMBRAL`, tipos, perfiles, operaciones, rutas) |
-| `src/GestionDatos.hpp`  | Persistencia: `GestionDatos`                                                                                    |
-| `src/util/config.hpp`   | Lectura de `config.ini` y armado del timestamp simulado                                                         |
-| `src/main.cpp`          | Cableado de las capas y ciclo del día                                                                           |
-| `src/ecogrid.h`         | Cabecera paraguas (una sola línea para usar todo el dominio)                                                    |
-| `sql/crear_esquema.sql` | Esquema, semilla, tarifa y trigger                                                                              |
-| `datos/ofertas_*.csv`   | Órdenes de cada tick (24 archivos)                                                                              |
+| Archivo                 | Contenido                                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `src/types.hpp`         | `NodoRed` y sus tres subclases, `Orden`, `TransaccionEnergia`, `GridManager` junto a la lógica de sus métodos. |
+| `src/constantes.hpp`    | Constantes y defaults de configuración                                                                         |
+| `src/GestionDatos.hpp`  | Persistencia de datos con SQLite3                                                                              |
+| `src/util/config.hpp`   | Lectura de `config.ini` y armado del timestamp simulado                                                        |
+| `src/main.cpp`          | Cableado de las capas y ciclo del día                                                                          |
+| `src/ecogrid.h`         | Cabecera paraguas.                                                                                             |
+| `sql/crear_esquema.sql` | Esquema, semilla, tarifa y trigger                                                                             |
+| `datos/ofertas_*.csv`   | Órdenes de cada tick (24 archivos)                                                                             |
 
 ### 2.1 Jerarquía de nodos
 
