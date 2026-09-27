@@ -26,7 +26,9 @@ Se decidió crear un archivo Makefile para agilizar la compilación para pruebas
 
 ## 2. Arquitectura
 
-Tres capas, con una regla de dependencia de una sola dirección:
+`main.cpp` contiene toda la simulación completa y consume de los otros `.hpp` permitiendo mejor modularización del código.
+
+Además, con el archivo `ecogrid.h` como dependencia paraguas, desde `main.cpp`  solo es necesario importar a éste. 
 
 ```
    main.cpp  (SimuladorEcoGrid)
@@ -34,7 +36,13 @@ Tres capas, con una regla de dependencia de una sola dirección:
         ├──► GridManager  ── motor de subasta.  NO sabe qué es SQL.
         │
         └──► GestionDatos   ── la única clase que habla SQLite.
+
 ```
+ecogrid.h ──> constantes.hpp, GestionDatos.hpp, types.hpp, util/config.hpp
+```
+```
+
+
 
 `GridManager` recibe el saldo de los nodos por callback en vez de ir a buscarlo, y la capa de datos se inyecta desde `main.cpp`. 
 
@@ -51,40 +59,26 @@ Tres capas, con una regla de dependencia de una sola dirección:
 | `src/main.cpp`          | Cableado de las capas y ciclo del día                                                                          |
 | `src/ecogrid.h`         | Cabecera paraguas.                                                                                             |
 | `sql/crear_esquema.sql` | Esquema, semilla, tarifa y trigger                                                                             |
-| `datos/ofertas_*.csv`   | Órdenes de cada tick (24 archivos)                                                                             |
+| `datos/ofertas_*.csv`   | Órdenes de cada tick (24 archivos con dato dummy)                                                              |
 
 ### 2.1 Jerarquía de nodos
 
-`NodoRed` es abstracta, con los atributos `id`, `ubicacion`, `balanceEnergia`
-(kW actual) y `saldoCuenta` (créditos), y un único método virtual puro
-`virtual double calcularExcedente() const = 0;` — tal como lo pide el punto 4.1
-del enunciado. Las tres subclases lo interpretan según el rol del nodo:
+`NodoRed` es **abstracta**, con los atributos `id`, `ubicacion`, `balanceEnergia` (kW actual) y `saldoCuenta` (créditos), y un único **método virtual puro** `virtual double calcularExcedente() const = 0;` 
 
-- **`NodoConsumidor`** — solo demanda: `calcularExcedente()` retorna siempre
-  negativo o cero (0 si `balanceEnergia` es positivo, si no el propio
-  `balanceEnergia`). No produce; su demanda real entra por las órdenes de
-  compra del CSV.
-- **`NodoProsumidor`** — produce y consume; su excedente es
-  `produccion - consumo` (positivo si hay excedente).
-- **`NodoAlmacenamiento`** — su excedente es la carga almacenada. Mantiene
-  `balanceEnergia` sincronizado con la carga en `absorberEnergia` /
-  `liberarEnergia`, que es su comportamiento propio.
+Las tres subclases lo interpretan según el rol del nodo:
 
-> **Nota sobre `calcularExcedente()` y la base de datos.** `calcularExcedente()`
-> es un requisito del enunciado (4.1) y hoy no tiene llamadores en runtime:
-> `balanceEnergia` del objeto es estado en memoria que nunca se persiste. El
-> `excedente_neto` que se guarda en `LECTURAS_HISTORICAS` lo calcula la capa de
-> datos por transacción (ver §4.3), independiente del atributo de la clase.
+- **`NodoConsumidor`** — solo demanda: `calcularExcedente()` retorna siempre negativo o cero (0 si `balanceEnergia` es positivo, si no el propio
+  `balanceEnergia`). No produce; su demanda real entra por las órdenes de compra del CSV.
+- **`NodoProsumidor`** — produce y consume; su excedente es `produccion - consumo` (positivo si hay excedente).
+- **`NodoAlmacenamiento`** — su excedente es la carga almacenada. Mantiene `balanceEnergia` sincronizado con la carga en `absorberEnergia` / `liberarEnergia`, que es su comportamiento propio.
 
-La subclase de cada nodo no se decide en el código sino leyendo la columna
-`tipo` de la tabla `NODOS` (`main.cpp: construirNodo`). Agregar un tipo de nodo
-es agregar una subclase y una rama en esa función.
 
-Para identificar el rol de un nodo en runtime, `NodoRed` expone
-`virtual bool esBateria() const` (false por defecto), que `NodoAlmacenamiento`
-override a `true`. Así `main.cpp` localiza la batería por polimorfismo en vez
-de con `dynamic_cast`: recorre el mapa de nodos y toma el primero cuyo
-`esBateria()` devuelve verdadero.
+
+> **Nota sobre `calcularExcedente()` y la base de datos.** `calcularExcedente()` hoy no tiene llamadores en runtime: `balanceEnergia` del objeto es estado en memoria que nunca se persiste. El `excedente_neto` que se guarda en `LECTURAS_HISTORICAS` lo calcula la capa de datos por transacción, independiente del atributo de la clase.
+
+La subclase de cada nodo no se decide en el código sino leyendo la columna `tipo` de la tabla `NODOS` (`main.cpp: construirNodo`). Agregar un tipo de nodo es agregar una subclase y una rama en esa función.
+
+Para identificar el rol de un nodo en runtime, `NodoRed` expone `virtual bool esBateria() const` (false por defecto), que `NodoAlmacenamiento`override a `true`. Así `main.cpp` localiza la batería por polimorfismo en vez de con `dynamic_cast`: recorre el mapa de nodos y toma el primero cuyo `esBateria()` devuelve verdadero.
 
 ### 2.2 El libro de órdenes y el matching
 
