@@ -13,8 +13,5 @@ programa
 *.db
 # Bases generadas
 ejemplo.db
-# Artefactos de las pruebas
-build/
-test_datos.db
 # Salida de una corrida redireccionada a mano
 rollback.log

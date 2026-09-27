@@ -80,31 +80,6 @@ No importa librerías: agrega los tres headers del proyecto
 externo incluya una sola línea y tenga todo el dominio (requisito del PDF,
 sección 7).
 
-## 6. tests/test_datos.cpp
-
-| Import      | Provee                                | Uso                                                  |
-| ----------- | ------------------------------------- | ---------------------------------------------------- |
-| `<cmath>`   | `std::fabs`                           | Comparación de doubles con tolerancia (`:37`)        |
-| `<cstdio>`  | `std::fopen`/`fputs`/`fclose`, `std::remove` | CSV temporales (`:59,259-276`)                  |
-| `<iomanip>` | `std::fixed`, `std::setprecision`     | Formato de salida (`:55`)                            |
-| `<iostream>`| `std::cout`                           | Resultados de pruebas                                |
-| `<map>`     | `std::map<int,double>`                | Mapa de saldos de semilla (`:42`)                    |
-| `<string>`  | `std::string`                         | Nombres de tests, mensajes                           |
-| `<vector>`  | `std::vector`                         | Datos de prueba                                      |
-
-### Módulos propios
-
-| Import            | Provee                                    |
-| ----------------- | ----------------------------------------- |
-| `GestionDatos.hpp`| `GestionDatos` (persistencia bajo prueba)    |
-| `types.hpp`       | `TransaccionEnergia`, `BATERIA`           |
-
-> **Pendiente**: los tests están desincronizados con la API actual.
-> Usan `g.persistirTick(txns, saldosSemilla(...), tick)` (firma con 3
-> argumentos) y `GestionDatos::leerCSVConInforme` (no existe; hoy la lectura de
-> CSV es `leerCSV` que devuelve `std::vector<Orden>`). Parecen escritos contra
-> la otra rama del merge pendiente. El `Makefile` tampoco tiene target `test`.
-
 ## Grafo de dependencias entre módulos propios
 
 ```
@@ -113,7 +88,6 @@ main.cpp ──> GestionDatos.hpp ──> types.hpp
    │                └──> util/config.hpp
    └──> types.hpp
 ecogrid.h ──> GestionDatos.hpp, types.hpp, util/config.hpp
-test_datos.cpp ──> GestionDatos.hpp, types.hpp
 ```
 
 - `types.hpp` (dominio) no depende de nada propio: es la base.
@@ -129,5 +103,3 @@ test_datos.cpp ──> GestionDatos.hpp, types.hpp
    - `src/types.hpp:433-451` — `libroVacio()`/`getTransacciones()` vs `reevaluarPendientesPorSaldo()`
    - `src/GestionDatos.hpp:98-119` — comentario del procedimiento vs `udfError`
    - `src/GestionDatos.hpp:507-511` — `return filas;` vs `return informe;` (la rama `informe` ni siquiera está declarada)
-2. **Tests desincronizados** con la API actual (ver sección 6).
-3. **`Makefile` sin target `test`** aunque `test_datos.cpp` documenta `make test`.
