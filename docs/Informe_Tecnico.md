@@ -38,10 +38,9 @@ Además, con el archivo `ecogrid.h` como dependencia paraguas, desde `main.cpp` 
         └──► GestionDatos   ── la única clase que habla SQLite.
 
 ```
+```
 ecogrid.h ──> constantes.hpp, GestionDatos.hpp, types.hpp, util/config.hpp
 ```
-```
-
 
 
 `GridManager` recibe el saldo de los nodos por callback en vez de ir a buscarlo, y la capa de datos se inyecta desde `main.cpp`. 
@@ -282,21 +281,7 @@ omiten con un aviso en consola sin abortar la simulación.
   transaccional por tick.
 
 ---
-
-## 6. Diagramas
-
-`docs/diagrama_clases.puml` y `docs/diagrama_entidad_relacion.puml` son la
-fuente de verdad (son texto: se versionan y se revisan en un diff). Los
-`.png`/`.pdf` que pide el enunciado son artefactos de build:
-
-```bash
-sudo apt install default-jre graphviz     # y bajar plantuml.jar
-./docs/render.sh                          # genera .png y .pdf
-./docs/render.sh pdf                      # solo pdf
-```
-
-Si no se quiere instalar nada, el mismo PlantUML se renderiza pegando el
-contenido del `.puml` en `plantuml.com/plantuml/uml/`. El script avisa y
+enido del `.puml` en `plantuml.com/plantuml/uml/`. El script avisa y
 sugiere esa alternativa si no encuentra `plantuml`.
 
 > Nota: en la máquina donde se hizo esta entrega no había `plantuml` ni
@@ -306,9 +291,9 @@ sugiere esa alternativa si no encuentra `plantuml`.
 
 ---
 
-## 7. Lo que no se resolvió, y por qué
+## 6. Lo que no se resolvió, y por qué
 
-### 7.1 Oracle + SOCI
+### 6.1 Oracle + SOCI
 
 El enunciado (sección 4.3) pide que la capa de datos use **Oracle** con la
 librería **SOCI**. El proyecto usa SQLite.
@@ -358,3 +343,11 @@ Simulación finalizada.
 
 Los saldos de los 15 nodos cierran exactamente con el total inicial
 (1.001.805 créditos): el ledger del día no crea ni destruye dinero.
+
+---
+
+## 8. Distribución de tareas y conclusiones
+
+Se partió de la base de código propuesta por la consigna. A partir de la descripción de los nodos, se generaron en conjunto la clase types y los Nodos. Luego, Alejandro se encargó principalmente de la configuración general del proyecto y de la capa de datos. Mientras que Augusto se ocupó del GridManager y del funcionamiento general del main. En una segunda instancia de revisión y corrección del código, el límite de la separación de tareas se desdibujó y cada uno pudo interactuar y corregir el trabajo del otro.
+
+El mayor desafío del proyecto fue interpretar la lógica de negocios e integrar el pseudocódigo provisto en las consignas al funcionamiento general. Se evaluaron múltiples enfoques, llegando a este resultado final priorizando la simplicidad y la síntesis.
