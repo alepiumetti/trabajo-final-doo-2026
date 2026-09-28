@@ -318,7 +318,6 @@ Si se consigue acceso a una instancia Oracle, el trabajo es escribir un
 
 ### 7.2 Otros puntos
 
-- **`docs/` en PNG/PDF** — ver §6. Faltan los archivos renderizados.
 - **Los CSV y las tarifas son datos de la cátedra.** Los CSVs de `datos/` se
   dejaron tal como estaban; las tarifas se fijaron solo en las 5 horas de los
   casos del enunciado (§4.1).
